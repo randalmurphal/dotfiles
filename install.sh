@@ -157,15 +157,31 @@ stow_package() {
 
     # Dry-run to find conflicts
     local conflicts
-    if ! conflicts="$(stow --dir="$DOTFILES_DIR" --target="$target" --no 2>&1 "$pkg")"; then
-        # Back up conflicting files
+    if ! conflicts="$(stow --dir="$DOTFILES_DIR" --target="$target" --simulate 2>&1 "$pkg")"; then
+        # Extract conflicting paths from stow error output
+        # Stow reports conflicts as:
+        #   "existing target is not owned by stow: <path>"
+        #   "existing target is neither a link nor a directory: <path>"
         local conflict_files
-        conflict_files="$(echo "$conflicts" | grep 'existing target is not owned by stow:' | sed 's/.*existing target is not owned by stow: //' || true)"
+        conflict_files="$(echo "$conflicts" \
+            | grep -E 'existing target is (not owned by stow|neither a link nor a directory):' \
+            | sed 's/.*existing target is [^:]*: //' \
+            | sed 's/^[[:space:]]*//' \
+            || true)"
+
         if [[ -n "$conflict_files" ]]; then
             mkdir -p "$BACKUP_DIR"
             while IFS= read -r f; do
+                [[ -z "$f" ]] && continue
                 local full_path="$target/$f"
-                if [[ -e "$full_path" && ! -L "$full_path" ]]; then
+                if [[ -L "$full_path" ]]; then
+                    # Symlink pointing elsewhere (e.g., old system-configs) — remove it
+                    local link_target
+                    link_target="$(readlink "$full_path")"
+                    rm "$full_path"
+                    info "Removed stale symlink $full_path → $link_target"
+                elif [[ -e "$full_path" ]]; then
+                    # Real file — back it up
                     local backup_path="$BACKUP_DIR/$f"
                     mkdir -p "$(dirname "$backup_path")"
                     mv "$full_path" "$backup_path"
