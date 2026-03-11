@@ -1,0 +1,18 @@
+#!/bin/bash
+# open - Cross-platform file/URL opener
+# WSL: uses explorer.exe, Linux: uses xdg-open, macOS: native open
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    command open "$@"
+elif grep -qi microsoft /proc/version 2>/dev/null; then
+    if [[ $# -eq 0 ]]; then
+        explorer.exe .
+    else
+        cmd.exe /c start "" "$(wslpath -w "$1")"
+    fi
+elif command -v xdg-open &>/dev/null; then
+    xdg-open "$@"
+else
+    echo "No suitable opener found" >&2
+    exit 1
+fi

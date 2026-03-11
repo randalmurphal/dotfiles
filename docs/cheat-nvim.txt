@@ -1,0 +1,61 @@
+[38;5;135m════════════════════════════════════════════════════════════════[0m
+[38;5;135m                   NEOVIM QUICK REFERENCE[0m
+[38;5;135m════════════════════════════════════════════════════════════════[0m
+
+[38;5;245mLeader: [38;5;135mSpace[0m
+
+[38;5;135m─── BUFFERS (TABS) ─────────────────────────────────────────────[0m
+[38;5;255mShift+h / l[0m     prev / next buffer
+[38;5;255m<leader>1-9[0m     jump to buffer
+[38;5;255m<leader>x[0m       close buffer
+[38;5;255m<leader><leader>[0m buffer picker
+
+[38;5;135m─── SPLITS ─────────────────────────────────────────────────────[0m
+[38;5;255m<leader>\[0m       vertical split
+[38;5;255m<leader>-[0m       horizontal split
+[38;5;255mCtrl+h/j/k/l[0m    navigate splits
+[38;5;255m<leader>wx[0m      close split
+[38;5;255m<leader>wo[0m      close other splits
+[38;5;255m<leader>w=[0m      equalize splits
+
+[38;5;135m─── FILE EXPLORER ──────────────────────────────────────────────[0m
+[38;5;255m<leader>e[0m       toggle tree
+[38;5;255m<leader>ef[0m      find file in tree
+[38;5;245min tree:[0m
+[38;5;255m  Enter[0m       open file
+[38;5;255m  a / A[0m       new file / folder
+[38;5;255m  r[0m           rename
+[38;5;255m  d[0m           delete
+
+[38;5;135m─── SEARCH (TELESCOPE) ─────────────────────────────────────────[0m
+[38;5;255m<leader>sf[0m      find files
+[38;5;255m<leader>sg[0m      live grep
+[38;5;255m<leader>sw[0m      grep current word
+[38;5;255m<leader>s.[0m      recent files
+[38;5;255m<leader>sd[0m      diagnostics
+[38;5;255m<leader>/[0m       fuzzy in buffer
+
+[38;5;135m─── LSP ────────────────────────────────────────────────────────[0m
+[38;5;255mgrd[0m             go to definition
+[38;5;255mgrr[0m             find references
+[38;5;255mgri[0m             go to implementation
+[38;5;255mgrn[0m             rename symbol
+[38;5;255mgra[0m             code action
+[38;5;255mK[0m               hover docs
+[38;5;255m<leader>f[0m       format buffer
+
+[38;5;135m─── GIT ────────────────────────────────────────────────────────[0m
+[38;5;255m<leader>gb[0m      git blame line
+
+[38;5;135m─── TMUX INTEGRATION ───────────────────────────────────────────[0m
+[38;5;255m<leader>ts[0m      send file to new tmux pane
+
+[38;5;135m─── ESSENTIALS ─────────────────────────────────────────────────[0m
+[38;5;255mjk[0m              exit insert mode
+[38;5;255m<leader>hh[0m      start of line
+[38;5;255m<leader>ll[0m      end of line
+[38;5;255mEsc[0m             clear search highlight
+[38;5;255m<leader>th[0m      toggle inlay hints
+
+[38;5;245mAuto-save on InsertLeave. Diagnostics show on hover.[0m
+[38;5;245mMouse back/forward = jump list. Click tabs to switch.[0m

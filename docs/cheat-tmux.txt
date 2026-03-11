@@ -1,0 +1,51 @@
+[38;5;135m════════════════════════════════════════════════════════════════[0m
+[38;5;135m                    TMUX QUICK REFERENCE[0m
+[38;5;135m════════════════════════════════════════════════════════════════[0m
+
+[38;5;245mPrefix: [38;5;135mCtrl+Space[0m
+
+[38;5;135m─── SPLITS & WINDOWS ───────────────────────────────────────────[0m
+[38;5;255mv[0m           horizontal split (current dir)
+[38;5;255mV[0m           vertical split (current dir)
+[38;5;255mn[0m           new window
+[38;5;255mh / l[0m       prev / next window
+[38;5;255m1-9[0m         jump to window
+
+[38;5;135m─── PANE NAVIGATION ────────────────────────────────────────────[0m
+[38;5;255mAlt+h/j/k/l[0m navigate panes (no prefix needed)
+[38;5;255mH/J/K/L[0m     resize pane (5 units)
+[38;5;255ma[0m           break pane to window
+[38;5;255mb / B[0m       join window as pane (h/v)
+
+[38;5;135m─── SESSIONS ───────────────────────────────────────────────────[0m
+[38;5;255mS[0m           choose session
+[38;5;255m![0m           new session
+[38;5;255mX[0m           kill session (confirm)
+[38;5;255ms[0m           save session (resurrect)
+[38;5;255mA[0m           smart session manager
+
+[38;5;135m─── FILE & GIT ─────────────────────────────────────────────────[0m
+[38;5;255mf[0m           fzf from home -> nvim
+[38;5;255m/[0m           nvim in current dir
+[38;5;255mF[0m           fzf directories
+[38;5;255me[0m           ranger
+[38;5;255mg[0m           lazygit
+
+[38;5;135m─── COPY MODE ──────────────────────────────────────────────────[0m
+[38;5;255mk[0m           enter copy mode
+[38;5;245min copy mode:[0m
+[38;5;255m  v[0m         begin selection
+[38;5;255m  y[0m         copy to clipboard
+[38;5;255m  r[0m         rectangle toggle
+[38;5;255m  Esc/q[0m     exit copy mode
+
+[38;5;135m─── CHEAT SHEETS ───────────────────────────────────────────────[0m
+[38;5;255mQ[0m           tmux cheat sheet
+[38;5;255mW[0m           nvim cheat sheet
+[38;5;255mE[0m           bash cheat sheet
+
+[38;5;135m─── OTHER ──────────────────────────────────────────────────────[0m
+[38;5;255mr[0m           reload config
+
+[38;5;245mMouse enabled. Click panes, scroll, drag to copy.[0m
+[38;5;245mSessions auto-restore on start. Manual save with prefix+s.[0m

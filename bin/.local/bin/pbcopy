@@ -1,0 +1,14 @@
+#!/bin/bash
+# pbcopy - Copy stdin to clipboard (cross-platform)
+# macOS: uses native pbcopy, WSL: clip.exe, Linux: xclip
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    command pbcopy
+elif grep -qi microsoft /proc/version 2>/dev/null; then
+    cat | clip.exe
+elif command -v xclip &>/dev/null; then
+    xclip -selection clipboard
+else
+    echo "No clipboard tool found (install xclip)" >&2
+    exit 1
+fi

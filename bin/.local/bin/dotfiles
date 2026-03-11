@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# dotfiles - Manage your dotfiles installation
+# Usage: dotfiles <command>
+#   dotfiles doctor  - Check health of installation
+#   dotfiles update  - Pull latest and restow
+#   dotfiles edit    - Open dotfiles in editor
+#   dotfiles sync    - Copy configs to Windows side (WSL only)
+
+set -euo pipefail
+
+DOTFILES_DIR="$HOME/repos/dotfiles"
+
+IS_WSL=0
+if [[ -f /proc/version ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+    IS_WSL=1
+fi
+
+# Colors
+if [[ -t 1 ]]; then
+    GREEN='\033[0;32m' RED='\033[0;31m' YELLOW='\033[0;33m'
+    CYAN='\033[0;36m' DIM='\033[2m' BOLD='\033[1m' RESET='\033[0m'
+else
+    GREEN='' RED='' YELLOW='' CYAN='' DIM='' BOLD='' RESET=''
+fi
+
+ok()   { echo -e "  ${GREEN}✓${RESET} $*"; }
+fail() { echo -e "  ${RED}✗${RESET} $*"; }
+warn() { echo -e "  ${YELLOW}!${RESET} $*"; }
+info() { echo -e "  ${CYAN}ℹ${RESET} $*"; }
+skip() { echo -e "  ${DIM}-${RESET} $*"; }
+
+check_symlink() {
+    local target="$1" desc="$2"
+    if [[ -L "$target" ]]; then
+        ok "$desc"
+    elif [[ -e "$target" ]]; then
+        warn "$desc (exists but not a symlink)"
+    else
+        fail "$desc (missing)"
+    fi
+}
+
+check_cmd() {
+    local cmd="$1" desc="${2:-$1}"
+    if command -v "$cmd" &>/dev/null; then
+        local ver
+        ver="$("$cmd" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
+        ok "$desc${ver:+ ($ver)}"
+    else
+        fail "$desc (not installed)"
+    fi
+}
+
+doctor() {
+    echo -e "${BOLD}Dotfiles Health Check${RESET}"
+    echo ""
+
+    echo -e "${CYAN}Symlinks${RESET}"
+    check_symlink "$HOME/.zshrc" ".zshrc"
+    check_symlink "$HOME/.zsh" ".zsh/"
+    check_symlink "$HOME/.gitconfig" ".gitconfig"
+    check_symlink "$HOME/.gitignore_global" ".gitignore_global"
+    check_symlink "$HOME/.tmux.conf" ".tmux.conf"
+    check_symlink "$HOME/.wezterm.lua" ".wezterm.lua"
+    if [[ "$IS_WSL" -eq 1 ]]; then
+        local win_home
+        win_home="$(wslpath "$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')" 2>/dev/null || echo "")"
+        local win_wezterm="$win_home/.wezterm.lua"
+        if [[ -n "$win_home" && -f "$win_wezterm" ]]; then
+            # Check if Windows copy is current
+            local src="$DOTFILES_DIR/wezterm/.wezterm.lua"
+            if [[ -f "$src" ]] && ! diff -q "$src" "$win_wezterm" &>/dev/null; then
+                warn ".wezterm.lua (Windows copy is stale - run: cp $src $win_wezterm)"
+            else
+                ok ".wezterm.lua (Windows copy)"
+            fi
+        elif [[ -n "$win_home" ]]; then
+            fail ".wezterm.lua (Windows copy missing at $win_wezterm)"
+        fi
+    fi
+
+    echo ""
+    echo -e "${CYAN}Shell${RESET}"
+    check_cmd zsh "ZSH"
+    if [[ -d "$HOME/.oh-my-zsh" ]]; then ok "oh-my-zsh"; else fail "oh-my-zsh (not installed)"; fi
+    if [[ -d "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" ]]; then ok "zsh-autosuggestions"; else fail "zsh-autosuggestions"; fi
+    if [[ -d "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" ]]; then ok "zsh-syntax-highlighting"; else fail "zsh-syntax-highlighting"; fi
+    if [[ -f "$HOME/.zsh/local.zsh" ]]; then ok "local.zsh (machine overrides)"; else skip "local.zsh (not created yet)"; fi
+
+    echo ""
+    echo -e "${CYAN}Tools${RESET}"
+    check_cmd git "Git"
+    check_cmd nvim "Neovim"
+    check_cmd tmux "tmux"
+    check_cmd fzf "fzf"
+    check_cmd rg "ripgrep"
+    check_cmd bat "bat" || check_cmd batcat "bat (batcat)"
+    check_cmd zoxide "zoxide"
+    check_cmd delta "git-delta"
+    check_cmd gh "GitHub CLI"
+    check_cmd lazygit "lazygit"
+    check_cmd stow "GNU stow"
+
+    echo ""
+    echo -e "${CYAN}Languages${RESET}"
+    if [[ -d "$HOME/.pyenv" ]]; then
+        local pyver
+        pyver="$(cat "$HOME/.pyenv/version" 2>/dev/null)"
+        ok "pyenv (default: ${pyver:-none})"
+    else
+        fail "pyenv (not installed)"
+    fi
+    if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+        local nver
+        nver="$(cat "$HOME/.nvm/alias/default" 2>/dev/null)"
+        ok "nvm (default: ${nver:-none})"
+    else
+        fail "nvm (not installed)"
+    fi
+    check_cmd go "Go"
+    check_cmd rustc "Rust"
+    check_cmd cargo "Cargo"
+
+    echo ""
+    echo -e "${CYAN}SSH${RESET}"
+    if [[ -f "$HOME/.ssh/id_ed25519" ]]; then
+        ok "SSH key (ed25519)"
+    elif [[ -f "$HOME/.ssh/id_rsa" ]]; then
+        warn "SSH key (rsa - consider switching to ed25519)"
+    else
+        fail "No SSH key found"
+    fi
+
+    echo ""
+    echo -e "${CYAN}Config${RESET}"
+    if [[ -f "$HOME/.gitconfig.local" ]]; then ok ".gitconfig.local"; else warn ".gitconfig.local (no local git config)"; fi
+    if [[ -d "$HOME/.config/nvim" ]]; then ok "Neovim config"; else fail "Neovim config (missing ~/.config/nvim)"; fi
+    if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then ok "TPM (tmux plugins)"; else fail "TPM (not installed)"; fi
+}
+
+update() {
+    echo "Updating dotfiles..."
+    cd "$DOTFILES_DIR"
+    git pull --rebase
+
+    echo "Restowing packages..."
+    for pkg in shell git tmux wezterm bin; do
+        if [[ -d "$DOTFILES_DIR/$pkg" ]]; then
+            stow --restow --target="$HOME" "$pkg" 2>/dev/null && echo "  ✓ $pkg" || echo "  ✗ $pkg (conflict)"
+        fi
+    done
+
+    # Stow claude if it exists
+    if [[ -d "$DOTFILES_DIR/claude" ]]; then
+        stow --restow --target="$HOME" claude 2>/dev/null && echo "  ✓ claude" || echo "  ✗ claude (conflict)"
+    fi
+
+    echo "Done."
+}
+
+edit() {
+    cd "$DOTFILES_DIR"
+    "${EDITOR:-nvim}" .
+}
+
+sync() {
+    if [[ "$IS_WSL" -eq 0 ]]; then
+        info "sync is only needed on WSL"
+        return 0
+    fi
+    local win_home
+    win_home="$(wslpath "$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')" 2>/dev/null || echo "")"
+    if [[ -z "$win_home" || ! -d "$win_home" ]]; then
+        fail "Could not detect Windows home directory"
+        return 1
+    fi
+    local src="$DOTFILES_DIR/wezterm/.wezterm.lua"
+    if [[ -f "$src" ]]; then
+        cp "$src" "$win_home/.wezterm.lua"
+        ok "Copied .wezterm.lua to Windows ($win_home)"
+    else
+        fail "Source not found: $src"
+    fi
+}
+
+case "${1:-help}" in
+    doctor) doctor ;;
+    update) update ;;
+    edit)   edit ;;
+    sync)   sync ;;
+    *)
+        echo "Usage: dotfiles <command>"
+        echo ""
+        echo "Commands:"
+        echo "  doctor  Check health of installation"
+        echo "  update  Pull latest and restow all packages"
+        echo "  edit    Open dotfiles repo in editor"
+        echo "  sync    Copy configs to Windows side (WSL only)"
+        ;;
+esac

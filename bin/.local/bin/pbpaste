@@ -1,0 +1,14 @@
+#!/bin/bash
+# pbpaste - Paste from clipboard to stdout (cross-platform)
+# macOS: uses native pbpaste, WSL: powershell, Linux: xclip
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    command pbpaste
+elif grep -qi microsoft /proc/version 2>/dev/null; then
+    powershell.exe -command "Get-Clipboard" | tr -d '\r'
+elif command -v xclip &>/dev/null; then
+    xclip -selection clipboard -o
+else
+    echo "No clipboard tool found (install xclip)" >&2
+    exit 1
+fi

@@ -1,0 +1,45 @@
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                            📚 RANDY'S EPIC CHEAT SHEET 📚                                                              ║
+║                                         🚀 Your Ultimate Command Reference 🚀                                                         ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌─ 🎮 TMUX KEYBINDINGS (Prefix: Ctrl+Space) ─────────────────────────────────────────────────────────────────────────────────────┐
+│ <prefix> + ;               - Show full cheat sheet        │ <prefix> + s               - Split window horizontally    │
+│ <prefix> + \               - Show nvim keybindings        │ <prefix> + v               - Split window vertically      │
+│ <prefix> + +               - Show tmux keybindings        │ <prefix> + n               - Create new window            │
+│ <prefix> + *               - Show bash aliases            │ <prefix> + h/l             - Previous/next window         │
+│ Alt + h/j/k/l              - Navigate panes               │ Alt + arrows               - Navigate panes (arrows)      │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ ⌨️  NEOVIM KEYBINDINGS ──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ jk                         - Exit insert mode             │ <leader>hh                 - Go to beginning of line      │
+│ <leader>ll                 - Go to end of line            │ <leader>e                  - Toggle nvim-tree sidebar     │
+│ <leader>ef                 - Find current file in tree    │ <leader>q                  - Open diagnostic quickfix     │
+│ <Esc>                      - Clear search highlights      │ <Esc><Esc>                 - Exit terminal mode           │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ 💻 BASH ALIASES & SHORTCUTS ────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ keys                       - Show this cheat sheet        │ cdsc                       - Go to system-configs repo    │
+│ cdnv                       - Go to nvim config repo       │ ls                         - List all files with colors   │
+│ ..                         - Go up one directory          │ ...                        - Go up two directories        │
+│ gs                         - Git status                   │ ga                         - Git add                      │
+│ gc                         - Git commit                   │ gp                         - Git push                     │
+│ gl                         - Git log (oneline)            │ gd                         - Git diff                     │
+│ serve                      - Start HTTP server            │ extract                    - Extract any archive          │
+│ mkcd                       - Make dir and cd into it      │ killp                      - Find and kill process        │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─ 🔧 DEVELOPMENT TOOLS ───────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ bat                        - Syntax highlighting cat       │ find                       - Classic file finder (the OG) │
+│ grep                       - Text search (still goated)   │ htop                       - Interactive process viewer   │
+│ tree                       - Directory tree view          │ fzf                        - Fuzzy file finder            │
+│ ranger                     - File manager                 │ ruff                       - Python linter/formatter      │
+└────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+💡 Pro Tips:
+• Leader key is Space - use <Space> + key for custom bindings
+• Press q to quit this cheat sheet
+• Use j/k or arrow keys to scroll up/down
+• In tmux, <prefix> means Ctrl+Space
+
+🚀 Happy coding! 🚀

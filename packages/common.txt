@@ -1,0 +1,23 @@
+# Common packages (reference list - actual install is in setup/packages.sh)
+git
+curl
+wget
+unzip
+jq
+tree
+make
+stow
+zsh
+tmux
+neovim
+fzf
+zoxide
+ripgrep
+bat
+htop
+btop
+ncdu
+git-delta
+gh
+lazygit
+direnv

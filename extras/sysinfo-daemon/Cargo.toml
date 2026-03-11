@@ -1,0 +1,7 @@
+[package]
+name = "sysinfo-daemon"
+version = "0.2.0"
+edition = "2021"
+
+[dependencies]
+sysinfo = { version = "0.38", default-features = false, features = ["system", "network"] }

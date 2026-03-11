@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# mkvenv - Create Python virtual environment
+# Usage: mkvenv [venv_dir] [python_version]
+#   mkvenv                  # Create .venv with default python3
+#   mkvenv myenv            # Create ./myenv with default python3
+#   mkvenv myenv 3.12       # Create ./myenv with python3.12
+
+set -euo pipefail
+
+VENV_DIR="${1:-.venv}"
+PYTHON_VERSION="${2:-}"
+
+if [[ -n "$PYTHON_VERSION" ]]; then
+    PYTHON_CMD="python${PYTHON_VERSION}"
+else
+    PYTHON_CMD="python3"
+fi
+
+if ! command -v "$PYTHON_CMD" &>/dev/null; then
+    echo "Error: $PYTHON_CMD not found"
+    exit 1
+fi
+
+ACTUAL_VERSION=$($PYTHON_CMD --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+
+echo "Creating virtual environment..."
+echo "  Python: $ACTUAL_VERSION"
+echo "  Location: $VENV_DIR"
+
+$PYTHON_CMD -m venv "$VENV_DIR"
+"$VENV_DIR/bin/pip" install --upgrade pip --quiet
+
+echo ""
+echo "Virtual environment created!"
+echo "Activate with: source $VENV_DIR/bin/activate"

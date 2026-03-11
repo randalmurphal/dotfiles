@@ -1,0 +1,20 @@
+# Machine-local configs (created by installer, not tracked)
+shell/.zsh/local.zsh
+
+# Credentials (never commit)
+*.credentials
+*.secret
+.env
+.env.*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+extras/sysinfo-daemon/target/
+
+# Editor
+*.swp
+*.swo
+*~
