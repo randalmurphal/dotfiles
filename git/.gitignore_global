@@ -43,8 +43,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build
-dist/
-build/
 *.o
 *.so
 *.dylib
@@ -58,3 +56,5 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+**/.claude/settings.local.json
