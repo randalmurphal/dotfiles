@@ -88,11 +88,6 @@ export GOPATH="${GOPATH:-$HOME/go}"
 # ========================================
 DEFAULT_VENV="${DEFAULT_VENV:-}"
 
-# Auto-activate default venv if set and its bin isn't already on PATH
-if [[ -n "$DEFAULT_VENV" && -f "$DEFAULT_VENV/bin/activate" ]] && [[ ":$PATH:" != *":$DEFAULT_VENV/bin:"* ]]; then
-    source "$DEFAULT_VENV/bin/activate"
-fi
-
 # Helper to switch venvs
 venv() {
     local venv_path="${1:-$DEFAULT_VENV}"
