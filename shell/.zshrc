@@ -3,7 +3,7 @@
 
 ZSHRC_DIR="$HOME/.zsh"
 
-# Machine-local config first (sets DEFAULT_VENV, WSL_DISTRO, etc.
+# Machine-local config first (sets machine-specific vars like WSL_DISTRO
 # that other modules depend on)
 [[ -f "$ZSHRC_DIR/local.zsh" ]]       && source "$ZSHRC_DIR/local.zsh"
 
@@ -12,3 +12,10 @@ ZSHRC_DIR="$HOME/.zsh"
 [[ -f "$ZSHRC_DIR/functions.zsh" ]]   && source "$ZSHRC_DIR/functions.zsh"
 [[ -f "$ZSHRC_DIR/path.zsh" ]]        && source "$ZSHRC_DIR/path.zsh"
 [[ -f "$ZSHRC_DIR/toolchains.zsh" ]]  && source "$ZSHRC_DIR/toolchains.zsh"
+
+# bun completions
+[ -s "/home/rmurphy/.bun/_bun" ] && source "/home/rmurphy/.bun/_bun"
+
+# Strip all aliases for AI agent shells (must stay last: everything above
+# this line defines aliases, including oh-my-zsh via core.zsh)
+[[ -n "$CLAUDECODE" || -n "$CODEX_MANAGED_BY_NPM" ]] && unalias -a
