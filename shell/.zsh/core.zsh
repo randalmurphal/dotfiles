@@ -16,7 +16,6 @@ plugins=()
 [ -d "$ZSH/plugins/pip" ] && plugins+=(pip)
 [ -d "$ZSH/plugins/docker" ] && plugins+=(docker)
 [ -d "$ZSH/plugins/tmux" ] && plugins+=(tmux)
-[ -d "$ZSH/plugins/fzf" ] && plugins+=(fzf)
 
 # Custom plugins
 if [ -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ] || [ -d "$ZSH/custom/plugins/zsh-autosuggestions" ]; then
@@ -51,9 +50,41 @@ if [ "$ZSH_HIGHLIGHT_BREW" = true ]; then
 fi
 
 # FZF integration
-[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ] && source /usr/share/doc/fzf/examples/key-bindings.zsh
-[ -f /usr/share/doc/fzf/examples/completion.zsh ] && source /usr/share/doc/fzf/examples/completion.zsh
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+load_fzf_integration() {
+    local fzf_init=""
+    local fzf_base=""
+    local completion_file=""
+    local key_bindings_file=""
+
+    if command -v fzf >/dev/null 2>&1; then
+        fzf_init="$(fzf --zsh 2>/dev/null)" || true
+        if [[ -n "$fzf_init" ]]; then
+            eval "$fzf_init"
+            return
+        fi
+    fi
+
+    for fzf_base in \
+        /usr/share/doc/fzf/examples \
+        /usr/share/fzf/shell \
+        /opt/homebrew/opt/fzf/shell \
+        /usr/local/opt/fzf/shell \
+        "$HOME/.fzf/shell"
+    do
+        if [[ -f "$fzf_base/completion.zsh" ]] && [[ -f "$fzf_base/key-bindings.zsh" ]]; then
+            completion_file="$fzf_base/completion.zsh"
+            key_bindings_file="$fzf_base/key-bindings.zsh"
+            break
+        fi
+    done
+
+    [[ -n "$completion_file" ]] && source "$completion_file" 2>/dev/null
+    [[ -n "$key_bindings_file" ]] && source "$key_bindings_file" 2>/dev/null
+    [[ -f "$HOME/.fzf.zsh" ]] && source "$HOME/.fzf.zsh" 2>/dev/null
+}
+
+load_fzf_integration
+unset -f load_fzf_integration
 
 # Completion styling
 zstyle ':completion:*' menu select
