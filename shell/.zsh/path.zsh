@@ -14,7 +14,8 @@
 # User local bins - highest priority
 [ -d "$HOME/.local/bin" ] && export PATH="$HOME/.local/bin:$PATH"
 
-# Zoxide (smarter cd)
-if command -v zoxide &> /dev/null; then
+# Zoxide (smarter cd). Interactive only: its chpwd hook records every cd,
+# and an agent shell's cd's are not places you want ranked.
+if [[ -z "$AGENT_SHELL" ]] && command -v zoxide &> /dev/null; then
     eval "$(zoxide init zsh)"
 fi

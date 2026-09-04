@@ -122,6 +122,29 @@ doctor() {
     check_cmd cargo "Cargo"
 
     echo ""
+    echo -e "${CYAN}Agent shell${RESET} ${DIM}(.zshrc as Claude Code / Codex snapshot it: non-interactive login, cold PATH)${RESET}"
+    local probe node_path alias_count chpwd opts
+    probe="$(env -i HOME="$HOME" USER="${USER:-}" PATH=/usr/bin:/bin zsh -lc '
+        source ~/.zshrc
+        printf "node=%s\n" "$(whence -p node)"
+        printf "aliases=%s\n" "$(alias | wc -l | tr -d " ")"
+        printf "chpwd=%s\n" "$(typeset -f chpwd >/dev/null 2>&1 && echo y || echo n)"
+        printf "opts=%s\n" "$(setopt | grep -cE "^(nonomatch|noequals|bsdecho)$")"
+    ' 2>&1)"
+    node_path="$(sed -n 's/^node=//p' <<< "$probe")"
+    alias_count="$(sed -n 's/^aliases=//p' <<< "$probe")"
+    chpwd="$(sed -n 's/^chpwd=//p' <<< "$probe")"
+    opts="$(sed -n 's/^opts=//p' <<< "$probe")"
+    if [[ -x "$node_path" ]]; then ok "node resolves to a binary ($node_path)"; else fail "node does not resolve to a binary (got '${node_path:-nothing}')"; fi
+    if [[ "$alias_count" == "0" ]]; then ok "no aliases"; else fail "${alias_count:-?} aliases leak into agent shells"; fi
+    if [[ "$chpwd" == "n" ]]; then ok "no chpwd hook"; else fail "chpwd hook leaks into agent shells (every tool output gets an OSC 7 prefix)"; fi
+    if [[ "$opts" == "3" ]]; then ok "bash-like options (no_nomatch no_equals bsd_echo)"; else fail "bash-like options not set (${opts:-?}/3)"; fi
+    if grep -qvE '^(node|aliases|chpwd|opts)=' <<< "$probe"; then
+        warn "agent shell startup printed output (should be silent):"
+        grep -vE '^(node|aliases|chpwd|opts)=' <<< "$probe" | sed 's/^/      /'
+    fi
+
+    echo ""
     echo -e "${CYAN}SSH${RESET}"
     if [[ -f "$HOME/.ssh/id_ed25519" ]]; then
         ok "SSH key (ed25519)"

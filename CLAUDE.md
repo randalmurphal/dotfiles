@@ -44,7 +44,8 @@ These files are NOT tracked in git:
 ## Key Patterns
 
 - **No shims**: pyenv adds the version bin directly to PATH, not shims
-- **Lazy-loaded nvm**: Shell functions stub nvm/node/npm/etc, load on first use
+- **Lazy-loaded nvm**: the default version's bin is on PATH directly; only `nvm()` is a stub. Never re-add node/npm/pnpm stubs: Claude Code's snapshot carries functions but not `NVM_DIR`, so a stub shadows a working binary with `. /nvm.sh`
+- **Agent shells get environment only**: `.zshrc` sets `AGENT_SHELL` for a non-interactive shell or one carrying `CLAUDECODE` / `CODEX_MANAGED_BY_*`, loads only local/path/toolchains, sets `no_nomatch no_equals bsd_echo`, and unaliases everything. Anything interactive (oh-my-zsh, chpwd hooks, zoxide, completions) goes behind `[[ -z "$AGENT_SHELL" ]]`
 - **PATH-based venv detection**: Checks `$PATH` not `$VIRTUAL_ENV` for activation guard
 - **Cross-platform clipboard**: pbcopy/pbpaste/open wrappers handle WSL, Linux, macOS
 

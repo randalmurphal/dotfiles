@@ -36,7 +36,9 @@ docs/        cheat sheets (tmux, nvim, bash)
 
 **No shims.** pyenv adds the Python version binary directory straight to PATH. No magic interceptors, no mysterious "command not found" from stale shims.
 
-**Lazy-loaded nvm.** Shell functions stub `node`, `npm`, `npx`, etc. NVM only loads when you actually use it. Saves ~2 seconds on every shell startup.
+**Lazy-loaded nvm.** The default Node version's bin goes straight on PATH; `nvm.sh` itself (~2 seconds) loads only when you call `nvm`. No stubs for `node`/`npm`/`pnpm`: a stub can only shadow the real binary, and Claude Code's shell snapshot carried the stubs without `NVM_DIR`, which is exactly how it did.
+
+**Agent shells get environment only.** Claude Code and Codex source `.zshrc` from a non-interactive login shell and snapshot the result into every command. `.zshrc` detects that (non-interactive, or the agents' env markers) and loads only `local.zsh`, `path.zsh` and `toolchains.zsh`: no oh-my-zsh, no prompt hooks, no zoxide, no aliases, plus `no_nomatch no_equals bsd_echo` so globs, `===` and `echo` behave like bash. Your interactive shell is untouched. `dotfiles doctor` checks it.
 
 **Stow, not symlink scripts.** One command to link, one to unlink, conflict detection built in. No hand-rolled symlink management to debug at 2am.
 

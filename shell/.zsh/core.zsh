@@ -126,6 +126,3 @@ virtualenv_info() {
 setopt PROMPT_SUBST
 export VIRTUAL_ENV_DISABLE_PROMPT=1
 PROMPT='$(virtualenv_info)[%F{green}%n%f:%F{blue}%m%f]$(git_branch | sed "s/.*/:&/"):%F{magenta}%1~%f$ '
-
-# Environment
-export REPOS_PATH="${REPOS_PATH:-$HOME/repos}"

@@ -17,39 +17,19 @@ fi
 # ========================================
 # NVM (Node Version Manager) - LAZY LOADED
 # ========================================
-export NVM_DIR="$HOME/.nvm"
+# nvm.sh costs ~2s, so only `nvm` itself loads it, on first call. node, npm,
+# pnpm and friends need no stub: the default version's bin goes on PATH
+# below, and a stub would only shadow it. (Claude Code's snapshot carries
+# functions but not NVM_DIR, so the stub defaults it rather than trusting
+# the export to have travelled with it.)
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 
 if [[ -s "$NVM_DIR/nvm.sh" ]]; then
     nvm() {
-        unset -f nvm node npm npx yarn pnpm 2>/dev/null
-        \. "$NVM_DIR/nvm.sh"
-        [[ -s "$NVM_DIR/bash_completion" ]] && \. "$NVM_DIR/bash_completion"
+        unset -f nvm
+        \. "${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+        [[ -s "${NVM_DIR:-$HOME/.nvm}/bash_completion" ]] && \. "${NVM_DIR:-$HOME/.nvm}/bash_completion"
         nvm "$@"
-    }
-    node() {
-        unset -f nvm node npm npx yarn pnpm 2>/dev/null
-        \. "$NVM_DIR/nvm.sh"
-        command node "$@"
-    }
-    npm() {
-        unset -f nvm node npm npx yarn pnpm 2>/dev/null
-        \. "$NVM_DIR/nvm.sh"
-        command npm "$@"
-    }
-    npx() {
-        unset -f nvm node npm npx yarn pnpm 2>/dev/null
-        \. "$NVM_DIR/nvm.sh"
-        command npx "$@"
-    }
-    yarn() {
-        unset -f nvm node npm npx yarn pnpm 2>/dev/null
-        \. "$NVM_DIR/nvm.sh"
-        command yarn "$@"
-    }
-    pnpm() {
-        unset -f nvm node npm npx yarn pnpm 2>/dev/null
-        \. "$NVM_DIR/nvm.sh"
-        command pnpm "$@"
     }
 
     if [[ -d "$NVM_DIR/versions/node" ]]; then
