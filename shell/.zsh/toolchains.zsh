@@ -59,6 +59,12 @@ export GOPATH="${GOPATH:-$HOME/go}"
 [ -d "$GOPATH/bin" ] && export PATH="$GOPATH/bin:$PATH"
 
 # ========================================
+# Bun
+# ========================================
+export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
+[ -d "$BUN_INSTALL/bin" ] && export PATH="$BUN_INSTALL/bin:$PATH"
+
+# ========================================
 # Rust (Cargo)
 # ========================================
 [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"

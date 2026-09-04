@@ -27,7 +27,7 @@ install_node() {
     # Global packages
     echo "Installing global npm packages..."
     for pkg in typescript ts-node pnpm yarn; do
-        npm install -g "$pkg" 2>/dev/null || echo "  Warning: failed to install $pkg"
+        npm install -g "$pkg"
     done
 
     echo "Node.js setup complete."

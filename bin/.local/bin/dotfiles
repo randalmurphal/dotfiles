@@ -15,6 +15,8 @@ if [[ -f /proc/version ]] && grep -qi microsoft /proc/version 2>/dev/null; then
     IS_WSL=1
 fi
 
+DOCTOR_FAILURES=0
+
 # Colors
 if [[ -t 1 ]]; then
     GREEN='\033[0;32m' RED='\033[0;31m' YELLOW='\033[0;33m'
@@ -24,7 +26,10 @@ else
 fi
 
 ok()   { echo -e "  ${GREEN}✓${RESET} $*"; }
-fail() { echo -e "  ${RED}✗${RESET} $*"; }
+fail() {
+    echo -e "  ${RED}✗${RESET} $*"
+    ((DOCTOR_FAILURES += 1))
+}
 warn() { echo -e "  ${YELLOW}!${RESET} $*"; }
 info() { echo -e "  ${CYAN}ℹ${RESET} $*"; }
 skip() { echo -e "  ${DIM}-${RESET} $*"; }
@@ -43,8 +48,12 @@ check_symlink() {
 check_cmd() {
     local cmd="$1" desc="${2:-$1}"
     if command -v "$cmd" &>/dev/null; then
-        local ver
-        ver="$("$cmd" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
+        local version_output ver
+        case "$cmd" in
+            tmux) version_output="$(tmux -V 2>/dev/null || true)" ;;
+            *) version_output="$("$cmd" --version 2>/dev/null || true)" ;;
+        esac
+        ver="$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' <<< "$version_output" | head -1 || true)"
         ok "$desc${ver:+ ($ver)}"
     else
         fail "$desc (not installed)"
@@ -52,19 +61,35 @@ check_cmd() {
 }
 
 doctor() {
+    DOCTOR_FAILURES=0
     echo -e "${BOLD}Dotfiles Health Check${RESET}"
     echo ""
 
     echo -e "${CYAN}Symlinks${RESET}"
     check_symlink "$HOME/.zshrc" ".zshrc"
-    check_symlink "$HOME/.zsh" ".zsh/"
+    check_symlink "$HOME/.zsh/core.zsh" ".zsh/core.zsh"
+    check_symlink "$HOME/.zsh/aliases.zsh" ".zsh/aliases.zsh"
+    check_symlink "$HOME/.zsh/functions.zsh" ".zsh/functions.zsh"
+    check_symlink "$HOME/.zsh/path.zsh" ".zsh/path.zsh"
+    check_symlink "$HOME/.zsh/toolchains.zsh" ".zsh/toolchains.zsh"
     check_symlink "$HOME/.gitconfig" ".gitconfig"
     check_symlink "$HOME/.gitignore_global" ".gitignore_global"
     check_symlink "$HOME/.tmux.conf" ".tmux.conf"
-    check_symlink "$HOME/.wezterm.lua" ".wezterm.lua"
     if [[ "$IS_WSL" -eq 1 ]]; then
-        local win_home
-        win_home="$(wslpath "$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')" 2>/dev/null || echo "")"
+        skip ".wezterm.lua (Linux copy is unused on WSL)"
+        local windows_profile win_home
+        if cmd.exe /d /c exit &>/dev/null; then
+            ok "Windows executable interop"
+            windows_profile="$(cd /mnt/c && cmd.exe /d /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')"
+        else
+            fail "Windows executable interop (WSLInterop registration is missing)"
+            windows_profile="$(
+                cd /mnt/c
+                /init /mnt/c/Windows/System32/cmd.exe /d /c 'echo %USERPROFILE%' 2>/dev/null \
+                    | tr -d '\r'
+            )"
+        fi
+        win_home="$(wslpath -u "$windows_profile" 2>/dev/null || true)"
         local win_wezterm="$win_home/.wezterm.lua"
         if [[ -n "$win_home" && -f "$win_wezterm" ]]; then
             # Check if Windows copy is current
@@ -77,6 +102,8 @@ doctor() {
         elif [[ -n "$win_home" ]]; then
             fail ".wezterm.lua (Windows copy missing at $win_wezterm)"
         fi
+    else
+        check_symlink "$HOME/.wezterm.lua" ".wezterm.lua"
     fi
 
     echo ""
@@ -94,7 +121,7 @@ doctor() {
     check_cmd tmux "tmux"
     check_cmd fzf "fzf"
     check_cmd rg "ripgrep"
-    check_cmd bat "bat" || check_cmd batcat "bat (batcat)"
+    if command -v bat &>/dev/null; then check_cmd bat "bat"; else check_cmd batcat "bat (batcat)"; fi
     check_cmd zoxide "zoxide"
     check_cmd delta "git-delta"
     check_cmd gh "GitHub CLI"
@@ -103,12 +130,14 @@ doctor() {
 
     echo ""
     echo -e "${CYAN}Languages${RESET}"
+    check_cmd python3 "Python"
+    check_cmd uv "uv"
     if [[ -d "$HOME/.pyenv" ]]; then
         local pyver
         pyver="$(cat "$HOME/.pyenv/version" 2>/dev/null)"
         ok "pyenv (default: ${pyver:-none})"
     else
-        fail "pyenv (not installed)"
+        skip "pyenv (not needed; uv manages project Python versions)"
     fi
     if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
         local nver
@@ -159,6 +188,14 @@ doctor() {
     if [[ -f "$HOME/.gitconfig.local" ]]; then ok ".gitconfig.local"; else warn ".gitconfig.local (no local git config)"; fi
     if [[ -d "$HOME/.config/nvim" ]]; then ok "Neovim config"; else fail "Neovim config (missing ~/.config/nvim)"; fi
     if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then ok "TPM (tmux plugins)"; else fail "TPM (not installed)"; fi
+
+    echo ""
+    if [[ "$DOCTOR_FAILURES" -eq 0 ]]; then
+        ok "No health-check failures"
+    else
+        fail "$DOCTOR_FAILURES health-check failure(s)"
+        return 1
+    fi
 }
 
 update() {
@@ -169,13 +206,13 @@ update() {
     echo "Restowing packages..."
     for pkg in shell git tmux wezterm bin; do
         if [[ -d "$DOTFILES_DIR/$pkg" ]]; then
-            stow --restow --target="$HOME" "$pkg" 2>/dev/null && echo "  ✓ $pkg" || echo "  ✗ $pkg (conflict)"
+            stow --restow --no-folding --target="$HOME" "$pkg" 2>/dev/null && echo "  ✓ $pkg" || echo "  ✗ $pkg (conflict)"
         fi
     done
 
     # Stow claude if it exists
     if [[ -d "$DOTFILES_DIR/claude" ]]; then
-        stow --restow --target="$HOME" claude 2>/dev/null && echo "  ✓ claude" || echo "  ✗ claude (conflict)"
+        stow --restow --no-folding --target="$HOME" claude 2>/dev/null && echo "  ✓ claude" || echo "  ✗ claude (conflict)"
     fi
 
     echo "Done."

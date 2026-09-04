@@ -27,14 +27,14 @@ git/         gitconfig with delta, aliases, global gitignore
 tmux/        tmux.conf (Ctrl+Space prefix, dark purple theme, TPM)
 wezterm/     wezterm.lua (dark purple theme, resurrect plugin, sysinfo status bar)
 bin/         utility scripts: dotfiles, mkvenv, pbcopy, pbpaste, open
-setup/       provisioning scripts (pyenv, nvm, go, rust, packages, wsl)
+setup/       provisioning scripts (packages, user tools, uv, nvm, go, rust, wsl)
 extras/      sysinfo-daemon (Rust), optional extras
 docs/        cheat sheets (tmux, nvim, bash)
 ```
 
 ## Design Decisions
 
-**No shims.** pyenv adds the Python version binary directory straight to PATH. No magic interceptors, no mysterious "command not found" from stale shims.
+**No shims.** uv installs Python and manages project versions; a venv goes straight on PATH. A machine that still has pyenv gets its version bin on PATH directly. No magic interceptors, no mysterious "command not found" from stale shims.
 
 **Lazy-loaded nvm.** The default Node version's bin goes straight on PATH; `nvm.sh` itself (~2 seconds) loads only when you call `nvm`. No stubs for `node`/`npm`/`pnpm`: a stub can only shadow the real binary, and Claude Code's shell snapshot carried the stubs without `NVM_DIR`, which is exactly how it did.
 
@@ -57,7 +57,7 @@ bash install.sh --section shell    # just one section
 bash install.sh --section shell --section git  # a few sections
 ```
 
-Sections: `packages`, `shell`, `git`, `tmux`, `wezterm`, `python`, `node`, `go`, `rust`, `neovim`, `claude`, `codex`, `wsl`
+Sections: `packages`, `tools`, `shell`, `git`, `tmux`, `wezterm`, `python`, `node`, `go`, `rust`, `neovim`, `claude`, `codex`, `wsl`
 
 ## After Install
 

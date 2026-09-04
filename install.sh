@@ -66,7 +66,7 @@ detect_platform() {
                 id="$(. /etc/os-release && echo "${ID:-unknown}")"
                 case "$id" in
                     ubuntu|debian|pop|linuxmint) DOTFILES_OS="debian" ;;
-                    fedora|rhel|centos|rocky|alma) DOTFILES_OS="fedora" ;;
+                    fedora|rhel|centos|rocky|alma|almalinux) DOTFILES_OS="fedora" ;;
                     arch|manjaro|endeavouros) DOTFILES_OS="arch" ;;
                     opensuse*|sles) DOTFILES_OS="opensuse" ;;
                     *) DOTFILES_OS="$id" ;;
@@ -157,7 +157,7 @@ stow_package() {
 
     # Dry-run to find conflicts
     local conflicts
-    if ! conflicts="$(stow --dir="$DOTFILES_DIR" --target="$target" --simulate 2>&1 "$pkg")"; then
+    if ! conflicts="$(stow --dir="$DOTFILES_DIR" --target="$target" --no-folding --simulate 2>&1 "$pkg")"; then
         # Extract conflicting paths from stow error output
         # Stow reports conflicts as:
         #   "existing target is not owned by stow: <path>"
@@ -191,7 +191,7 @@ stow_package() {
         fi
     fi
 
-    if stow --dir="$DOTFILES_DIR" --restow --target="$target" "$pkg" 2>&1; then
+    if stow --dir="$DOTFILES_DIR" --restow --no-folding --target="$target" "$pkg" 2>&1; then
         success "Stowed $pkg → $target"
         return 0
     else
@@ -206,10 +206,33 @@ install_section_packages() {
     section "System Packages"
     local script="$DOTFILES_DIR/setup/packages.sh"
     if [[ -f "$script" ]]; then
-        bash "$script"
-        success "System packages installed"
+        if bash "$script"; then
+            success "System packages installed"
+        else
+            error "System package installation failed"
+            return 1
+        fi
     else
-        warn "setup/packages.sh not found, skipping"
+        error "setup/packages.sh not found"
+        return 1
+    fi
+}
+
+install_section_tools() {
+    section "User Tools"
+    stow_package bin || return 1
+
+    local script="$DOTFILES_DIR/setup/user-tools.sh"
+    if [[ -f "$script" ]]; then
+        if bash "$script"; then
+            success "User tools installed"
+        else
+            error "User tool installation failed"
+            return 1
+        fi
+    else
+        error "setup/user-tools.sh not found"
+        return 1
     fi
 }
 
@@ -230,6 +253,7 @@ install_section_shell() {
         RUNZSH=no KEEP_ZSHRC=yes sh -c \
             "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || {
             error "oh-my-zsh installation failed"
+            return 1
         }
     fi
 
@@ -241,7 +265,7 @@ install_section_shell() {
     else
         step "Installing zsh-autosuggestions..."
         git clone --depth 1 https://github.com/zsh-users/zsh-autosuggestions \
-            "$zsh_custom/plugins/zsh-autosuggestions"
+            "$zsh_custom/plugins/zsh-autosuggestions" || return 1
     fi
 
     if [[ -d "$zsh_custom/plugins/zsh-syntax-highlighting" ]]; then
@@ -249,7 +273,7 @@ install_section_shell() {
     else
         step "Installing zsh-syntax-highlighting..."
         git clone --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting \
-            "$zsh_custom/plugins/zsh-syntax-highlighting"
+            "$zsh_custom/plugins/zsh-syntax-highlighting" || return 1
     fi
 
     # Local zsh config template (lives alongside stow symlinks, not tracked)
@@ -337,7 +361,7 @@ install_section_tmux() {
         info "TPM already installed"
     else
         step "Installing TPM..."
-        git clone --depth 1 https://github.com/tmux-plugins/tpm "$tpm_dir"
+        git clone --depth 1 https://github.com/tmux-plugins/tpm "$tpm_dir" || return 1
         success "TPM installed"
     fi
 
@@ -380,10 +404,15 @@ install_section_python() {
     section "Python"
     local script="$DOTFILES_DIR/setup/python.sh"
     if [[ -f "$script" ]]; then
-        bash "$script"
-        success "Python setup complete"
+        if bash "$script"; then
+            success "Python setup complete"
+        else
+            error "Python setup failed"
+            return 1
+        fi
     else
-        warn "setup/python.sh not found, skipping"
+        error "setup/python.sh not found"
+        return 1
     fi
 }
 
@@ -391,10 +420,15 @@ install_section_node() {
     section "Node.js"
     local script="$DOTFILES_DIR/setup/node.sh"
     if [[ -f "$script" ]]; then
-        bash "$script"
-        success "Node.js setup complete"
+        if bash "$script"; then
+            success "Node.js setup complete"
+        else
+            error "Node.js setup failed"
+            return 1
+        fi
     else
-        warn "setup/node.sh not found, skipping"
+        error "setup/node.sh not found"
+        return 1
     fi
 }
 
@@ -402,10 +436,15 @@ install_section_go() {
     section "Go"
     local script="$DOTFILES_DIR/setup/go.sh"
     if [[ -f "$script" ]]; then
-        bash "$script"
-        success "Go setup complete"
+        if bash "$script"; then
+            success "Go setup complete"
+        else
+            error "Go setup failed"
+            return 1
+        fi
     else
-        warn "setup/go.sh not found, skipping"
+        error "setup/go.sh not found"
+        return 1
     fi
 }
 
@@ -413,10 +452,15 @@ install_section_rust() {
     section "Rust"
     local script="$DOTFILES_DIR/setup/rust.sh"
     if [[ -f "$script" ]]; then
-        bash "$script"
-        success "Rust setup complete"
+        if bash "$script"; then
+            success "Rust setup complete"
+        else
+            error "Rust setup failed"
+            return 1
+        fi
     else
-        warn "setup/rust.sh not found, skipping"
+        error "setup/rust.sh not found"
+        return 1
     fi
 }
 
@@ -470,8 +514,9 @@ install_section_claude() {
         info "Claude Code CLI already installed"
     else
         step "Installing Claude Code CLI..."
-        curl -fsSL https://claude.ai/install.sh | sh 2>/dev/null || {
-            warn "Claude Code install failed (try: curl -fsSL https://claude.ai/install.sh | sh)"
+        curl -fsSL https://claude.ai/install.sh | sh || {
+            error "Claude Code install failed (try: curl -fsSL https://claude.ai/install.sh | sh)"
+            return 1
         }
     fi
 
@@ -480,23 +525,14 @@ install_section_claude() {
     if [[ -d "$claude_dir/.git" ]]; then
         info "claude-config already cloned at $claude_dir"
     elif [[ -d "$claude_dir" ]]; then
-        # Directory exists but isn't a git repo - could be runtime files from CLI
-        # Init and pull into existing directory
-        step "Initializing claude-config in existing $claude_dir..."
-        (
-            cd "$claude_dir"
-            git init
-            git remote add origin git@github.com:randalmurphal/claude-config.git
-            git fetch origin
-            git checkout -f -b main origin/main
-        ) 2>/dev/null || {
-            warn "Failed to clone claude-config into existing $claude_dir"
-            warn "Try manually: cd ~/.claude && git init && git remote add origin git@github.com:randalmurphal/claude-config.git && git fetch && git checkout main"
-        }
+        error "$claude_dir already contains non-Git runtime state"
+        error "Refusing to initialize or overwrite it; migrate or reconcile it explicitly"
+        return 1
     else
         step "Cloning claude-config..."
         git clone git@github.com:randalmurphal/claude-config.git "$claude_dir" || {
-            warn "Failed to clone claude-config (SSH key needed for github.com)"
+            error "Failed to clone claude-config (SSH key needed for github.com)"
+            return 1
         }
     fi
 
@@ -582,11 +618,13 @@ install_section_codex() {
     else
         step "Installing Codex CLI..."
         if command_exists npm; then
-            npm install -g @openai/codex 2>/dev/null || {
-                warn "Codex install failed (try: npm install -g @openai/codex)"
+            npm install -g @openai/codex || {
+                error "Codex install failed (try: npm install -g @openai/codex)"
+                return 1
             }
         else
-            warn "npm not found, skipping Codex install"
+            error "npm not found; cannot install Codex"
+            return 1
         fi
     fi
 
@@ -595,21 +633,14 @@ install_section_codex() {
     if [[ -d "$codex_dir/.git" ]]; then
         info "codex-config already cloned at $codex_dir"
     elif [[ -d "$codex_dir" ]]; then
-        # Directory exists but isn't a git repo - init and pull
-        step "Initializing codex-config in existing $codex_dir..."
-        (
-            cd "$codex_dir"
-            git init
-            git remote add origin git@github.com:randalmurphal/codex-config.git
-            git fetch origin
-            git checkout -f -b main origin/main
-        ) 2>/dev/null || {
-            warn "Failed to clone codex-config into existing $codex_dir"
-        }
+        error "$codex_dir already contains non-Git runtime state"
+        error "Refusing to initialize or overwrite it; migrate or reconcile it explicitly"
+        return 1
     else
         step "Cloning codex-config..."
         git clone git@github.com:randalmurphal/codex-config.git "$codex_dir" || {
-            warn "Failed to clone codex-config (SSH key needed for github.com)"
+            error "Failed to clone codex-config (SSH key needed for github.com)"
+            return 1
         }
     fi
 
@@ -620,10 +651,15 @@ install_section_wsl() {
     section "WSL Setup"
     local script="$DOTFILES_DIR/setup/wsl.sh"
     if [[ -f "$script" ]]; then
-        bash "$script"
-        success "WSL setup complete"
+        if bash "$script"; then
+            success "WSL setup complete"
+        else
+            error "WSL setup failed"
+            return 1
+        fi
     else
-        warn "setup/wsl.sh not found, skipping"
+        error "setup/wsl.sh not found"
+        return 1
     fi
 }
 
@@ -641,7 +677,7 @@ Options:
   --help             Show this help message
 
 Sections:
-  packages, shell, git, tmux, wezterm, python, node, go, rust,
+  packages, tools, shell, git, tmux, wezterm, python, node, go, rust,
   neovim, claude, codex, wsl
 
 Examples:
@@ -698,11 +734,12 @@ main() {
     # Define sections: key|label|function|wsl_only
     local -a sections=(
         "packages|System packages|install_section_packages|0"
+        "tools|User tools|install_section_tools|0"
         "shell|Shell (zsh + oh-my-zsh)|install_section_shell|0"
         "git|Git configuration|install_section_git|0"
         "tmux|Tmux + TPM|install_section_tmux|0"
         "wezterm|WezTerm|install_section_wezterm|0"
-        "python|Python (pyenv)|install_section_python|0"
+        "python|Python (uv)|install_section_python|0"
         "node|Node.js (nvm)|install_section_node|0"
         "go|Go|install_section_go|0"
         "rust|Rust (rustup)|install_section_rust|0"
@@ -824,10 +861,13 @@ main() {
 
     if [[ "$has_failures" -eq 1 ]]; then
         printf "  ${C_YELLOW}Done with errors. Review warnings above.${C_RESET}\n"
+        return 1
     else
         printf "  ${C_GREEN}${C_BOLD}Done!${C_RESET} Restart your shell to pick up changes.\n"
     fi
     printf '\n'
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

@@ -3,6 +3,38 @@ set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+warn_optional() {
+    printf 'Warning: optional package %s could not be installed.\n' "$1" >&2
+}
+
+install_optional_apt_packages() {
+    local package
+    for package in "$@"; do
+        sudo apt-get install -y -qq "$package" || warn_optional "$package"
+    done
+}
+
+install_optional_dnf_packages() {
+    local package
+    for package in "$@"; do
+        sudo dnf install -y "$package" || warn_optional "$package"
+    done
+}
+
+install_optional_pacman_packages() {
+    local package
+    for package in "$@"; do
+        sudo pacman -S --noconfirm --needed "$package" || warn_optional "$package"
+    done
+}
+
+install_optional_zypper_packages() {
+    local package
+    for package in "$@"; do
+        sudo zypper install -y "$package" || warn_optional "$package"
+    done
+}
+
 # Common packages (names vary by distro - handle inline)
 install_packages() {
     echo "Installing system packages..."
@@ -20,19 +52,33 @@ install_packages() {
         sudo apt-get install -y -qq \
             git curl wget unzip jq tree make stow \
             zsh tmux neovim \
-            fzf zoxide ripgrep fd-find \
-            bat eza htop btop ncdu \
-            build-essential python3-venv python3-dev python3-pip \
-            xclip git-delta gh lazygit direnv 2>/dev/null || true
+            fzf ripgrep fd-find \
+            bat htop ncdu \
+            build-essential python3-venv python3-dev python3-pip libpq-dev \
+            xclip gh direnv
+        install_optional_apt_packages zoxide eza btop git-delta lazygit
 
     elif command -v dnf &>/dev/null; then
+        local distro_id="unknown"
+        if [[ -r /etc/os-release ]]; then
+            distro_id="$(. /etc/os-release && printf '%s' "${ID:-unknown}")"
+        fi
+
+        # RHEL-compatible distributions publish most developer utilities in EPEL.
+        # Fedora already carries them in its standard repositories.
+        if [[ "$distro_id" != "fedora" ]]; then
+            sudo dnf install -y epel-release
+        fi
         sudo dnf install -y \
             git curl wget unzip jq tree make stow \
             zsh tmux neovim \
-            fzf zoxide ripgrep fd-find \
-            bat eza htop btop ncdu \
-            gcc gcc-c++ python3-devel \
-            xclip git-delta gh lazygit direnv 2>/dev/null || true
+            fzf ripgrep fd-find \
+            bat htop btop ncdu \
+            gcc gcc-c++ python3-devel libpq-devel \
+            xclip gh \
+            podman podman-docker podman-compose buildah \
+            gtk4-devel webkitgtk6.0-devel pkgconf-pkg-config
+        install_optional_dnf_packages zoxide eza lazygit direnv
 
     elif command -v pacman &>/dev/null; then
         sudo pacman -S --noconfirm --needed \
@@ -41,7 +87,8 @@ install_packages() {
             fzf zoxide ripgrep fd \
             bat eza htop btop ncdu \
             base-devel python python-pip \
-            xclip git-delta github-cli lazygit direnv 2>/dev/null || true
+            xclip github-cli direnv
+        install_optional_pacman_packages git-delta lazygit
 
     elif command -v zypper &>/dev/null; then
         sudo zypper install -y \
@@ -50,7 +97,8 @@ install_packages() {
             fzf zoxide ripgrep fd \
             bat htop btop ncdu \
             gcc make python3-devel \
-            xclip git-delta gh lazygit direnv 2>/dev/null || true
+            xclip gh direnv
+        install_optional_zypper_packages git-delta lazygit eza
     else
         echo "Unsupported package manager. Install packages manually."
         return 1

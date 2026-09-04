@@ -6,7 +6,7 @@ install_rust() {
         local version
         version="$(rustc --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
         echo "Rust already installed ($version), updating..."
-        rustup update stable 2>/dev/null || true
+        rustup update stable
         return 0
     fi
 
@@ -22,7 +22,7 @@ install_rust() {
         return 1
     fi
 
-    rustup component add clippy rustfmt rust-analyzer 2>/dev/null || true
+    rustup component add clippy rustfmt rust-analyzer
     echo "Rust setup complete."
 }
 

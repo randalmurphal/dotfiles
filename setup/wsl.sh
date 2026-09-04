@@ -77,19 +77,31 @@ EOF
     echo ".wslconfig created at $wslconfig"
 }
 
-# Git WSL optimizations
-configure_git_wsl() {
-    if command -v git &>/dev/null; then
-        git config --global core.fscache true
-        git config --global core.preloadindex true
-        git config --global core.untrackedCache true
-        git config --global core.checkStat minimal
-        echo "Git WSL optimizations applied"
+configure_windows_interop() {
+    if cmd.exe /d /c exit &>/dev/null; then
+        echo "Windows executable interop is working"
+        return 0
     fi
+
+    if [[ ! -d /etc/binfmt.d || ! -e /proc/sys/fs/binfmt_misc/register ]]; then
+        echo "Windows executable interop is unavailable and binfmt_misc is not ready" >&2
+        return 1
+    fi
+
+    echo "Registering the WSL Windows executable format with systemd-binfmt..."
+    printf '%s\n' ':WSLInterop:M::MZ::/init:P' \
+        | sudo tee /etc/binfmt.d/WSLInterop.conf >/dev/null
+    sudo systemctl restart systemd-binfmt.service
+
+    cmd.exe /d /c exit &>/dev/null || {
+        echo "WSLInterop registration completed but Windows executables still cannot run" >&2
+        return 1
+    }
+    echo "Windows executable interop repaired"
 }
 
 configure_wsl_conf
+configure_windows_interop
 configure_wslconfig
-configure_git_wsl
 
 echo "WSL setup complete. Run 'wsl --shutdown' in Windows Terminal to apply."
