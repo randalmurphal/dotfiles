@@ -72,7 +72,7 @@ nestedVirtualization=true
 
 [experimental]
 autoMemoryReclaim=gradual
-sparseVhd=true
+# sparseVhd=true  # experimental; left off
 EOF
     echo ".wslconfig created at $wslconfig"
 }
