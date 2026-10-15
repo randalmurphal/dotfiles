@@ -3,6 +3,7 @@
 # Usage: dotfiles <command>
 #   dotfiles doctor  - Check health of installation
 #   dotfiles update  - Pull latest and restow
+#   dotfiles upgrade - Reinstall selected tool categories at their latest release
 #   dotfiles edit    - Open dotfiles in editor
 #   dotfiles sync    - Copy configs to Windows side (WSL only)
 
@@ -127,18 +128,25 @@ doctor() {
     check_cmd gh "GitHub CLI"
     check_cmd lazygit "lazygit"
     check_cmd stow "GNU stow"
+    check_cmd glab "GitLab CLI"
+    check_cmd shellcheck "ShellCheck"
+    check_cmd yq "yq"
+    check_cmd mongosh "mongosh"
+    check_cmd psql "psql"
+    check_cmd typst "Typst"
+    check_cmd pandoc "Pandoc"
+
+    echo ""
+    echo -e "${CYAN}Kubernetes and secrets${RESET}"
+    local tool
+    for tool in kubectl helm k9s argocd minikube linkerd sops age; do
+        if command -v "$tool" &>/dev/null; then ok "$tool"; else fail "$tool (not installed)"; fi
+    done
 
     echo ""
     echo -e "${CYAN}Languages${RESET}"
     check_cmd python3 "Python"
     check_cmd uv "uv"
-    if [[ -d "$HOME/.pyenv" ]]; then
-        local pyver
-        pyver="$(cat "$HOME/.pyenv/version" 2>/dev/null)"
-        ok "pyenv (default: ${pyver:-none})"
-    else
-        skip "pyenv (not needed; uv manages project Python versions)"
-    fi
     if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
         local nver
         nver="$(cat "$HOME/.nvm/alias/default" 2>/dev/null)"
@@ -149,6 +157,9 @@ doctor() {
     check_cmd go "Go"
     check_cmd rustc "Rust"
     check_cmd cargo "Cargo"
+    for tool in dlv govulncheck golangci-lint; do
+        if command -v "$tool" &>/dev/null; then ok "$tool"; else fail "$tool (not installed; run setup/go.sh)"; fi
+    done
 
     echo ""
     echo -e "${CYAN}Agent shell${RESET} ${DIM}(.zshrc as Claude Code / Codex snapshot it: non-interactive login, cold PATH)${RESET}"
@@ -171,6 +182,16 @@ doctor() {
     if grep -qvE '^(node|aliases|chpwd|opts)=' <<< "$probe"; then
         warn "agent shell startup printed output (should be silent):"
         grep -vE '^(node|aliases|chpwd|opts)=' <<< "$probe" | sed 's/^/      /'
+    fi
+
+    if [[ "$IS_WSL" -eq 1 ]]; then
+        echo ""
+        echo -e "${CYAN}WSL${RESET}"
+        if systemctl is-active --quiet earlyoom.service; then
+            ok "earlyoom running"
+        else
+            fail "earlyoom not running (run setup/wsl.sh)"
+        fi
     fi
 
     echo ""
@@ -210,12 +231,38 @@ update() {
         fi
     done
 
-    # Stow claude if it exists
-    if [[ -d "$DOTFILES_DIR/claude" ]]; then
-        stow --restow --no-folding --target="$HOME" claude 2>/dev/null && echo "  ✓ claude" || echo "  ✗ claude (conflict)"
+    echo "Done."
+}
+
+# Categories: go and nvim here, the rest belong to setup/user-tools.sh.
+upgrade() {
+    if [[ $# -eq 0 ]]; then
+        echo "Usage: dotfiles upgrade <category...|all>"
+        echo "  go       Go toolchain, dlv, govulncheck, golangci-lint"
+        echo "  nvim     Neovim"
+        bash "$DOTFILES_DIR/setup/user-tools.sh" --help | tail -n +3
+        return 1
     fi
 
-    echo "Done."
+    local category user_categories=() run_go=0 run_nvim=0 run_user=0
+    for category in "$@"; do
+        case "$category" in
+            all) run_go=1; run_nvim=1; run_user=1 ;;
+            go) run_go=1 ;;
+            nvim) run_nvim=1 ;;
+            *) user_categories+=("$category"); run_user=1 ;;
+        esac
+    done
+
+    if [[ "$run_user" -eq 1 ]]; then
+        bash "$DOTFILES_DIR/setup/user-tools.sh" --upgrade "${user_categories[@]}"
+    fi
+    if [[ "$run_go" -eq 1 ]]; then
+        UPGRADE=1 bash "$DOTFILES_DIR/setup/go.sh"
+    fi
+    if [[ "$run_nvim" -eq 1 ]]; then
+        bash "$DOTFILES_DIR/install.sh" --section neovim
+    fi
 }
 
 edit() {
@@ -246,6 +293,7 @@ sync() {
 case "${1:-help}" in
     doctor) doctor ;;
     update) update ;;
+    upgrade) shift; upgrade "$@" ;;
     edit)   edit ;;
     sync)   sync ;;
     *)
@@ -254,6 +302,7 @@ case "${1:-help}" in
         echo "Commands:"
         echo "  doctor  Check health of installation"
         echo "  update  Pull latest and restow all packages"
+        echo "  upgrade Reinstall tool categories at their latest release (no args: list)"
         echo "  edit    Open dotfiles repo in editor"
         echo "  sync    Copy configs to Windows side (WSL only)"
         ;;

@@ -1,18 +1,4 @@
-# Language Toolchains - pyenv, nvm, Go, Rust, Python venvs
-
-# ========================================
-# Pyenv (Python version manager)
-# ========================================
-# Adds pyenv-managed Python to PATH directly. No shims, no shell hooks.
-if [[ -d "$HOME/.pyenv" ]]; then
-    export PYENV_ROOT="$HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    _pyenv_version="$(cat "$PYENV_ROOT/version" 2>/dev/null | head -1)"
-    if [[ -n "$_pyenv_version" && "$_pyenv_version" != "system" && -d "$PYENV_ROOT/versions/$_pyenv_version/bin" ]]; then
-        export PATH="$PYENV_ROOT/versions/$_pyenv_version/bin:$PATH"
-    fi
-    unset _pyenv_version
-fi
+# Language Toolchains - nvm, Go, Bun, Python venvs (Rust is on PATH via path.zsh)
 
 # ========================================
 # NVM (Node Version Manager) - LAZY LOADED
@@ -52,7 +38,6 @@ fi
 # ========================================
 # Go
 # ========================================
-[ -d "$HOME/go-install/go/bin" ] && export PATH="$HOME/go-install/go/bin:$PATH"
 [ -d "/usr/local/go/bin" ] && export PATH="/usr/local/go/bin:$PATH"
 
 export GOPATH="${GOPATH:-$HOME/go}"
@@ -63,11 +48,6 @@ export GOPATH="${GOPATH:-$HOME/go}"
 # ========================================
 export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 [ -d "$BUN_INSTALL/bin" ] && export PATH="$BUN_INSTALL/bin:$PATH"
-
-# ========================================
-# Rust (Cargo)
-# ========================================
-[ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env"
 
 # ========================================
 # Python Virtual Environments

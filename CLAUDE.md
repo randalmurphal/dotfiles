@@ -24,7 +24,6 @@ dotfiles/
 ├── extras/                 # Optional extras (not stowed)
 │   └── sysinfo-daemon/     # Rust daemon for WezTerm status bar
 ├── docs/                   # Cheat sheets (referenced by tmux keybindings)
-├── packages/               # Package lists (reference)
 └── Brewfile                # macOS Homebrew bundle
 ```
 
@@ -47,7 +46,7 @@ These files are NOT tracked in git:
 
 - **No shims**: uv installs Python; venvs and any leftover pyenv version bin go on PATH directly, never shims
 - **Lazy-loaded nvm**: the default version's bin is on PATH directly; only `nvm()` is a stub. Never re-add node/npm/pnpm stubs: Claude Code's snapshot carries functions but not `NVM_DIR`, so a stub shadows a working binary with `. /nvm.sh`
-- **Agent shells get environment only**: `.zshrc` sets `AGENT_SHELL` for a non-interactive shell or one carrying `CLAUDECODE` / `CODEX_MANAGED_BY_*`, loads only local/path/toolchains, sets `no_nomatch no_equals bsd_echo`, and unaliases everything. Anything interactive (oh-my-zsh, chpwd hooks, zoxide, completions) goes behind `[[ -z "$AGENT_SHELL" ]]`
+- **Agent shells get PATH, functions and options only**: the Claude Code snapshot carries no other exports, so a variable agents need goes in `~/.zshenv` or Claude's `settings.json` env. `.zshrc` sets `AGENT_SHELL` for a non-interactive shell or one carrying `CLAUDECODE` / `CODEX_MANAGED_BY_*`, loads only local/path/toolchains, sets `no_nomatch no_equals bsd_echo`, and unaliases everything. Anything interactive (oh-my-zsh, chpwd hooks, zoxide, completions) goes behind `[[ -z "$AGENT_SHELL" ]]`
 - **PATH-based venv detection**: Checks `$PATH` not `$VIRTUAL_ENV` for activation guard
 - **Cross-platform clipboard**: pbcopy/pbpaste/open wrappers handle WSL, Linux, macOS
 
@@ -63,4 +62,5 @@ Always edit files in this repo, not the symlinked copies in `~`. After editing:
 ```bash
 dotfiles doctor   # Check health of symlinks and tools
 dotfiles update   # Pull latest + restow all packages
+dotfiles upgrade  # Reinstall tool categories at their latest release (no args: list)
 ```

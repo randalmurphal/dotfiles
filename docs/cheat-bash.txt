@@ -3,7 +3,7 @@
 [38;5;135m════════════════════════════════════════════════════════════════[0m
 
 [38;5;135m─── NAVIGATION ─────────────────────────────────────────────────[0m
-[38;5;255mcdsc[0m            system-configs repo
+[38;5;255mcdd[0m             dotfiles repo
 [38;5;255mcdnv[0m            nvim config
 [38;5;255m.. / ...[0m        up one / two dirs
 [38;5;255mmkcd [dir][0m      mkdir + cd into it

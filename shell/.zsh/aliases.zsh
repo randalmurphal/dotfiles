@@ -15,6 +15,11 @@ alias gp='git push'
 alias gl='git log --oneline --graph --all'
 alias gd='git diff'
 
+# Agent CLIs
+alias c='claude --dangerously-skip-permissions'
+alias cc='claude --dangerously-skip-permissions'
+alias cx='codex --yolo'
+
 # Navigation
 alias ..='cd ..'
 alias ...='cd ../..'

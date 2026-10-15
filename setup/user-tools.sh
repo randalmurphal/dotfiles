@@ -3,15 +3,32 @@
 # installed from each project's own release into ~/.local/bin. Linux only:
 # every archive below is a Linux build, and on macOS the Brewfile carries
 # the same tools.
+#
+# Usage: user-tools.sh [--upgrade] [CATEGORY...]
+#   No categories: every category. Without --upgrade a tool already on PATH
+#   is skipped, so versions another setup installed stay put; with --upgrade
+#   the named categories are reinstalled from their latest release.
 set -euo pipefail
 
-if [[ "$(uname -s)" != "Linux" ]]; then
-    echo "User tools are Linux-only here; on macOS run: brew bundle --file=Brewfile"
-    exit 0
-fi
+declare -A CATEGORIES=(
+    [shell]="zoxide lazygit delta eza direnv bun"
+    [k8s]="kubectl helm k9s argocd minikube linkerd"
+    [secrets]="sops age"
+    [dev]="glab shellcheck yq mongosh"
+    [docs]="typst pandoc"
+)
+CATEGORY_ORDER=(shell k8s secrets dev docs)
 
-mkdir -p "$HOME/.local/bin"
-export PATH="$HOME/.local/bin:$PATH"
+UPGRADE=0
+
+usage() {
+    echo "Usage: $(basename "$0") [--upgrade] [CATEGORY...]"
+    echo "Categories:"
+    local category
+    for category in "${CATEGORY_ORDER[@]}"; do
+        printf '  %-8s %s\n' "$category" "${CATEGORIES[$category]}"
+    done
+}
 
 # Release-asset arch names: Go-style (amd64/arm64) and uname-style (x86_64/aarch64).
 go_arch() {
@@ -57,15 +74,85 @@ install_release_binary() {
     )
 }
 
-# Skips a tool already on PATH, so machine-pinned versions (e.g. installed
-# by a work setup) are left alone.
+# True when NAME should be left alone: it is on PATH and this is not an upgrade.
 have() {
+    [[ "$UPGRADE" -eq 1 ]] && return 1
     if command -v "$1" &>/dev/null; then
         echo "$1 already installed"
         return 0
     fi
     return 1
 }
+
+# ─── shell ────────────────────────────────────────────────────────────────────
+
+install_zoxide() {
+    have zoxide && return 0
+    local tag target
+    tag="$(github_latest_tag ajeetdsouza/zoxide)"
+    target="$(uname_arch)-unknown-linux-musl"
+    install_release_binary zoxide \
+        "https://github.com/ajeetdsouza/zoxide/releases/download/$tag/zoxide-${tag#v}-$target.tar.gz" zoxide
+}
+
+install_lazygit() {
+    have lazygit && return 0
+    local tag arch
+    tag="$(github_latest_tag jesseduffield/lazygit)"
+    arch="$(uname_arch)"
+    [[ "$arch" == "aarch64" ]] && arch="arm64"
+    install_release_binary lazygit \
+        "https://github.com/jesseduffield/lazygit/releases/download/$tag/lazygit_${tag#v}_linux_$arch.tar.gz" lazygit
+}
+
+install_delta() {
+    have delta && return 0
+    local tag target
+    tag="$(github_latest_tag dandavison/delta)"
+    target="$(uname_arch)-unknown-linux-gnu"
+    install_release_binary delta \
+        "https://github.com/dandavison/delta/releases/download/$tag/delta-$tag-$target.tar.gz" "delta-$tag-$target/delta"
+}
+
+install_eza() {
+    have eza && return 0
+    local tag
+    tag="$(github_latest_tag eza-community/eza)"
+    install_release_binary eza \
+        "https://github.com/eza-community/eza/releases/download/$tag/eza_$(uname_arch)-unknown-linux-gnu.tar.gz" ./eza
+}
+
+install_direnv() {
+    have direnv && return 0
+    local tag
+    tag="$(github_latest_tag direnv/direnv)"
+    install_release_binary direnv \
+        "https://github.com/direnv/direnv/releases/download/$tag/direnv.linux-$(go_arch)"
+}
+
+# Bun lives in ~/.bun (toolchains.zsh puts it on PATH) and ships as a zip.
+install_bun() {
+    if [[ "$UPGRADE" -eq 0 && -x "$HOME/.bun/bin/bun" ]]; then
+        echo "bun already installed"
+        return 0
+    fi
+    local tag asset
+    tag="$(github_latest_tag oven-sh/bun)"
+    asset="bun-linux-$(uname_arch)"
+    [[ "$asset" == "bun-linux-x86_64" ]] && asset="bun-linux-x64"
+    echo "Installing bun ${tag#bun-v}"
+    (
+        local tmpdir
+        tmpdir="$(mktemp -d)"
+        trap 'rm -rf "$tmpdir"' EXIT
+        curl -fsSL "https://github.com/oven-sh/bun/releases/download/$tag/$asset.zip" -o "$tmpdir/bun.zip"
+        unzip -q "$tmpdir/bun.zip" -d "$tmpdir"
+        install -Dm755 "$tmpdir/$asset/bun" "$HOME/.bun/bin/bun"
+        ln -sfn bun "$HOME/.bun/bin/bunx"
+    )
+}
+
+# ─── k8s ──────────────────────────────────────────────────────────────────────
 
 install_kubectl() {
     have kubectl && return 0
@@ -98,31 +185,6 @@ install_argocd() {
         "https://github.com/argoproj/argo-cd/releases/download/$tag/argocd-linux-$(go_arch)"
 }
 
-install_sops() {
-    have sops && return 0
-    local tag
-    tag="$(github_latest_tag getsops/sops)"
-    install_release_binary sops \
-        "https://github.com/getsops/sops/releases/download/$tag/sops-$tag.linux.$(go_arch)"
-}
-
-install_age() {
-    have age && return 0
-    local tag
-    tag="$(github_latest_tag FiloSottile/age)"
-    install_release_binary age \
-        "https://github.com/FiloSottile/age/releases/download/$tag/age-$tag-linux-$(go_arch).tar.gz" \
-        age/age age/age-keygen
-}
-
-install_yq() {
-    have yq && return 0
-    local tag
-    tag="$(github_latest_tag mikefarah/yq)"
-    install_release_binary yq \
-        "https://github.com/mikefarah/yq/releases/download/$tag/yq_linux_$(go_arch)"
-}
-
 install_minikube() {
     have minikube && return 0
     local tag
@@ -140,6 +202,27 @@ install_linkerd() {
         "https://github.com/linkerd/linkerd2/releases/download/$tag/linkerd2-cli-$tag-linux-$(go_arch)"
 }
 
+# ─── secrets ──────────────────────────────────────────────────────────────────
+
+install_sops() {
+    have sops && return 0
+    local tag
+    tag="$(github_latest_tag getsops/sops)"
+    install_release_binary sops \
+        "https://github.com/getsops/sops/releases/download/$tag/sops-$tag.linux.$(go_arch)"
+}
+
+install_age() {
+    have age && return 0
+    local tag
+    tag="$(github_latest_tag FiloSottile/age)"
+    install_release_binary age \
+        "https://github.com/FiloSottile/age/releases/download/$tag/age-$tag-linux-$(go_arch).tar.gz" \
+        age/age age/age-keygen
+}
+
+# ─── dev ──────────────────────────────────────────────────────────────────────
+
 install_glab() {
     have glab && return 0
     local version
@@ -151,6 +234,37 @@ install_glab() {
         "https://gitlab.com/gitlab-org/cli/-/releases/v$version/downloads/glab_${version}_linux_$(go_arch).tar.gz" \
         bin/glab
 }
+
+install_shellcheck() {
+    have shellcheck && return 0
+    local tag
+    tag="$(github_latest_tag koalaman/shellcheck)"
+    install_release_binary shellcheck \
+        "https://github.com/koalaman/shellcheck/releases/download/$tag/shellcheck-$tag.linux.$(uname_arch).tar.xz" \
+        "shellcheck-$tag/shellcheck"
+}
+
+install_yq() {
+    have yq && return 0
+    local tag
+    tag="$(github_latest_tag mikefarah/yq)"
+    install_release_binary yq \
+        "https://github.com/mikefarah/yq/releases/download/$tag/yq_linux_$(go_arch)"
+}
+
+install_mongosh() {
+    have mongosh && return 0
+    local version arch
+    version="$(github_latest_tag mongodb-js/mongosh)"
+    version="${version#v}"
+    arch="$(go_arch)"
+    [[ "$arch" == "amd64" ]] && arch="x64"
+    install_release_binary mongosh \
+        "https://downloads.mongodb.com/compass/mongosh-$version-linux-$arch.tgz" \
+        "mongosh-$version-linux-$arch/bin/mongosh"
+}
+
+# ─── docs ─────────────────────────────────────────────────────────────────────
 
 install_typst() {
     have typst && return 0
@@ -170,237 +284,43 @@ install_pandoc() {
         "pandoc-$tag/bin/pandoc"
 }
 
-install_shellcheck() {
-    have shellcheck && return 0
-    local tag
-    tag="$(github_latest_tag koalaman/shellcheck)"
-    install_release_binary shellcheck \
-        "https://github.com/koalaman/shellcheck/releases/download/$tag/shellcheck-$tag.linux.$(uname_arch).tar.xz" \
-        "shellcheck-$tag/shellcheck"
-}
+# ─── main ─────────────────────────────────────────────────────────────────────
 
-install_mongosh() {
-    have mongosh && return 0
-    local version arch
-    version="$(github_latest_tag mongodb-js/mongosh)"
-    version="${version#v}"
-    arch="$(go_arch)"
-    [[ "$arch" == "amd64" ]] && arch="x64"
-    install_release_binary mongosh \
-        "https://downloads.mongodb.com/compass/mongosh-$version-linux-$arch.tgz" \
-        "mongosh-$version-linux-$arch/bin/mongosh"
-}
+main() {
+    local selected=() category tool
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --upgrade) UPGRADE=1 ;;
+            -h|--help) usage; return 0 ;;
+            *)
+                if [[ -z "${CATEGORIES[$1]:-}" ]]; then
+                    echo "Unknown category: $1" >&2
+                    usage >&2
+                    return 1
+                fi
+                selected+=("$1")
+                ;;
+        esac
+        shift
+    done
+    [[ ${#selected[@]} -eq 0 ]] && selected=("${CATEGORY_ORDER[@]}")
 
-install_zoxide() {
-    if command -v zoxide &>/dev/null; then
-        echo "zoxide already installed ($(zoxide --version))"
+    if [[ "$(uname -s)" != "Linux" ]]; then
+        echo "User tools are Linux-only here; on macOS run: brew bundle --file=Brewfile"
         return 0
     fi
 
-    echo "Installing zoxide from its official release installer..."
-    local installer
-    installer="$(mktemp)"
-    trap 'rm -f "$installer"' RETURN
-    curl -fsSL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh \
-        -o "$installer"
-    sh "$installer"
-    trap - RETURN
-    rm -f "$installer"
+    mkdir -p "$HOME/.local/bin"
+    export PATH="$HOME/.local/bin:$PATH"
+
+    for category in "${selected[@]}"; do
+        for tool in ${CATEGORIES[$category]}; do
+            "install_$tool"
+        done
+    done
+    local verb="set up"
+    [[ "$UPGRADE" -eq 1 ]] && verb="upgraded"
+    echo "User tools $verb: ${selected[*]}"
 }
 
-install_lazygit() {
-    if command -v lazygit &>/dev/null; then
-        echo "lazygit already installed ($(lazygit --version | head -1))"
-        return 0
-    fi
-
-    local arch version
-    case "$(uname -m)" in
-        x86_64) arch="x86_64" ;;
-        aarch64|arm64) arch="arm64" ;;
-        *)
-            echo "Unsupported architecture for lazygit: $(uname -m)" >&2
-            return 1
-            ;;
-    esac
-
-    version="$(
-        curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest \
-            | jq -er '.tag_name | ltrimstr("v")'
-    )"
-
-    echo "Installing lazygit $version from its official release..."
-    (
-        local tmpdir archive
-        tmpdir="$(mktemp -d)"
-        trap 'rm -rf "$tmpdir"' EXIT
-        archive="$tmpdir/lazygit.tar.gz"
-        curl -fsSL \
-            "https://github.com/jesseduffield/lazygit/releases/download/v${version}/lazygit_${version}_Linux_${arch}.tar.gz" \
-            -o "$archive"
-        tar -xzf "$archive" -C "$tmpdir" lazygit
-        install -Dm755 "$tmpdir/lazygit" "$HOME/.local/bin/lazygit"
-    )
-}
-
-install_delta() {
-    if command -v delta &>/dev/null; then
-        echo "delta already installed ($(delta --version))"
-        return 0
-    fi
-
-    local arch version
-    case "$(uname -m)" in
-        x86_64) arch="x86_64-unknown-linux-gnu" ;;
-        aarch64|arm64) arch="aarch64-unknown-linux-gnu" ;;
-        *)
-            echo "Unsupported architecture for delta: $(uname -m)" >&2
-            return 1
-            ;;
-    esac
-
-    version="$(
-        curl -fsSL https://api.github.com/repos/dandavison/delta/releases/latest \
-            | jq -er '.tag_name | ltrimstr("v")'
-    )"
-
-    echo "Installing delta $version from its official release..."
-    (
-        local tmpdir archive delta_bin
-        tmpdir="$(mktemp -d)"
-        trap 'rm -rf "$tmpdir"' EXIT
-        archive="$tmpdir/delta.tar.gz"
-        curl -fsSL \
-            "https://github.com/dandavison/delta/releases/download/${version}/delta-${version}-${arch}.tar.gz" \
-            -o "$archive"
-        tar -xzf "$archive" -C "$tmpdir"
-        delta_bin="$(find "$tmpdir" -type f -name delta -perm -u+x -print -quit)"
-        if [[ -z "$delta_bin" ]]; then
-            echo "The delta release archive did not contain an executable" >&2
-            return 1
-        fi
-        install -Dm755 "$delta_bin" "$HOME/.local/bin/delta"
-    )
-}
-
-install_eza() {
-    if command -v eza &>/dev/null; then
-        echo "eza already installed ($(eza --version | head -1))"
-        return 0
-    fi
-
-    local arch version
-    case "$(uname -m)" in
-        x86_64) arch="x86_64-unknown-linux-gnu" ;;
-        aarch64|arm64) arch="aarch64-unknown-linux-gnu" ;;
-        *)
-            echo "Unsupported architecture for eza: $(uname -m)" >&2
-            return 1
-            ;;
-    esac
-
-    version="$(
-        curl -fsSL https://api.github.com/repos/eza-community/eza/releases/latest \
-            | jq -er '.tag_name | ltrimstr("v")'
-    )"
-
-    echo "Installing eza $version from its official release..."
-    (
-        local tmpdir archive
-        tmpdir="$(mktemp -d)"
-        trap 'rm -rf "$tmpdir"' EXIT
-        archive="$tmpdir/eza.tar.gz"
-        curl -fsSL \
-            "https://github.com/eza-community/eza/releases/download/v${version}/eza_${arch}.tar.gz" \
-            -o "$archive"
-        tar -xzf "$archive" -C "$tmpdir"
-        install -Dm755 "$tmpdir/eza" "$HOME/.local/bin/eza"
-    )
-}
-
-install_direnv() {
-    if command -v direnv &>/dev/null; then
-        echo "direnv already installed ($(direnv version))"
-        return 0
-    fi
-
-    local arch version
-    case "$(uname -m)" in
-        x86_64) arch="amd64" ;;
-        aarch64|arm64) arch="arm64" ;;
-        *)
-            echo "Unsupported architecture for direnv: $(uname -m)" >&2
-            return 1
-            ;;
-    esac
-
-    version="$(
-        curl -fsSL https://api.github.com/repos/direnv/direnv/releases/latest \
-            | jq -er '.tag_name | ltrimstr("v")'
-    )"
-
-    echo "Installing direnv $version from its official release..."
-    curl -fsSL \
-        "https://github.com/direnv/direnv/releases/download/v${version}/direnv.linux-${arch}" \
-        -o "$HOME/.local/bin/direnv"
-    chmod 0755 "$HOME/.local/bin/direnv"
-}
-
-install_bun() {
-    if [[ -x "$HOME/.bun/bin/bun" ]]; then
-        echo "Bun already installed ($("$HOME/.bun/bin/bun" --version))"
-        return 0
-    fi
-
-    local asset version
-    case "$(uname -m)" in
-        x86_64) asset="bun-linux-x64" ;;
-        aarch64|arm64) asset="bun-linux-aarch64" ;;
-        *)
-            echo "Unsupported architecture for Bun: $(uname -m)" >&2
-            return 1
-            ;;
-    esac
-
-    version="$(
-        curl -fsSL https://api.github.com/repos/oven-sh/bun/releases/latest \
-            | jq -er '.tag_name'
-    )"
-
-    echo "Installing Bun ${version#bun-v} from its official release..."
-    (
-        local tmpdir archive
-        tmpdir="$(mktemp -d)"
-        trap 'rm -rf "$tmpdir"' EXIT
-        archive="$tmpdir/bun.zip"
-        curl -fsSL \
-            "https://github.com/oven-sh/bun/releases/download/${version}/${asset}.zip" \
-            -o "$archive"
-        unzip -q "$archive" -d "$tmpdir"
-        install -Dm755 "$tmpdir/$asset/bun" "$HOME/.bun/bin/bun"
-        ln -s bun "$HOME/.bun/bin/bunx"
-    )
-}
-
-install_zoxide
-install_lazygit
-install_delta
-install_eza
-install_direnv
-install_bun
-install_kubectl
-install_helm
-install_k9s
-install_argocd
-install_sops
-install_age
-install_yq
-install_minikube
-install_linkerd
-install_glab
-install_typst
-install_pandoc
-install_shellcheck
-install_mongosh
-
-echo "User tools setup complete."
+main "$@"

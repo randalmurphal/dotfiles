@@ -6,7 +6,8 @@ export REPOS_PATH="${REPOS_PATH:-$HOME/repos}"
 
 # Agent shells get environment only. Claude Code and Codex source this file
 # from a NON-interactive login shell and snapshot the result (functions,
-# options, exports) into every command they run, so anything interactive
+# options, aliases, PATH; not other exports) into every command they run,
+# so anything interactive
 # here leaks into the agent: oh-my-zsh's hundreds of functions, the OSC 7
 # chpwd hook (which prefixed every tool output with an escape sequence),
 # zoxide's chpwd hook (which would rank agent cd's in the z database), and
@@ -17,8 +18,7 @@ if [[ ! -o interactive || -n "$CLAUDECODE" || -n "$CODEX_MANAGED_BY_NPM$CODEX_MA
     AGENT_SHELL=1
 fi
 
-# Machine-local config first (sets machine-specific vars like WSL_DISTRO
-# that other modules depend on)
+# Machine-local config first, so the modules below can build on it
 [[ -f "$ZSHRC_DIR/local.zsh" ]]       && source "$ZSHRC_DIR/local.zsh"
 
 if [[ -z "$AGENT_SHELL" ]]; then
