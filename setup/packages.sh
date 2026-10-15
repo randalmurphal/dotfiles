@@ -55,8 +55,11 @@ install_packages() {
             fzf ripgrep fd-find \
             bat htop ncdu \
             build-essential python3-venv python3-dev python3-pip libpq-dev \
-            xclip gh direnv
-        install_optional_apt_packages zoxide eza btop git-delta lazygit
+            xclip gh direnv \
+            clang cmake lld nasm \
+            strace lsof psmisc inotify-tools rsync zip bash-completion \
+            postgresql-client
+        install_optional_apt_packages zoxide eza btop git-delta lazygit tldr
 
     elif command -v dnf &>/dev/null; then
         local distro_id="unknown"
@@ -77,8 +80,11 @@ install_packages() {
             gcc gcc-c++ python3-devel libpq-devel \
             xclip gh \
             podman podman-docker podman-compose buildah \
-            gtk4-devel webkitgtk6.0-devel pkgconf-pkg-config
-        install_optional_dnf_packages zoxide eza lazygit direnv
+            gtk4-devel webkitgtk6.0-devel pkgconf-pkg-config \
+            clang cmake lld nasm \
+            strace lsof psmisc inotify-tools rsync zip bash-completion \
+            postgresql
+        install_optional_dnf_packages zoxide eza lazygit direnv tldr
 
     elif command -v pacman &>/dev/null; then
         sudo pacman -S --noconfirm --needed \
@@ -87,8 +93,11 @@ install_packages() {
             fzf zoxide ripgrep fd \
             bat eza htop btop ncdu \
             base-devel python python-pip \
-            xclip github-cli direnv
-        install_optional_pacman_packages git-delta lazygit
+            xclip github-cli direnv \
+            clang cmake lld nasm \
+            strace lsof psmisc inotify-tools rsync zip bash-completion \
+            postgresql
+        install_optional_pacman_packages git-delta lazygit tldr
 
     elif command -v zypper &>/dev/null; then
         sudo zypper install -y \
@@ -97,8 +106,11 @@ install_packages() {
             fzf zoxide ripgrep fd \
             bat htop btop ncdu \
             gcc make python3-devel \
-            xclip gh direnv
-        install_optional_zypper_packages git-delta lazygit eza
+            xclip gh direnv \
+            clang cmake lld nasm \
+            strace lsof psmisc inotify-tools rsync zip bash-completion \
+            postgresql
+        install_optional_zypper_packages git-delta lazygit eza tealdeer
     else
         echo "Unsupported package manager. Install packages manually."
         return 1

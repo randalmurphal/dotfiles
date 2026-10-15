@@ -14,11 +14,11 @@ dotfiles/
 ├── bin/                    # Stow package: .local/bin/ scripts
 ├── setup/                  # Provisioning scripts (not stowed)
 │   ├── packages.sh         # System packages (apt/dnf/pacman/zypper/brew)
-│   ├── user-tools.sh       # Linux: zoxide/lazygit/delta/eza/direnv/bun from their releases (macOS: Brewfile)
+│   ├── user-tools.sh       # Linux: CLI tools (shell, k8s, docs, DB clients) from their releases; skips any already on PATH (macOS: Brewfile)
 │   ├── audit-git-state.sh  # One-line-per-repo inventory of branch, head, upstream, dirty state
 │   ├── python.sh           # uv + a uv-managed Python
 │   ├── node.sh             # nvm + Node.js
-│   ├── go.sh               # Go (direct download)
+│   ├── go.sh               # Go (direct download) + dlv, golangci-lint, govulncheck
 │   ├── rust.sh             # rustup
 │   └── wsl.sh              # WSL-specific setup
 ├── extras/                 # Optional extras (not stowed)

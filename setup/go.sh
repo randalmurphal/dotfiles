@@ -56,4 +56,19 @@ install_go() {
     echo "$(go version) installed"
 }
 
+# Go developer tools into ~/go/bin. golangci-lint uses its own installer
+# because its maintainers do not support `go install` builds.
+install_go_tools() {
+    export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"
+    local gobin
+    gobin="$(go env GOPATH)/bin"
+
+    command -v dlv &>/dev/null || go install github.com/go-delve/delve/cmd/dlv@latest
+    command -v govulncheck &>/dev/null || go install golang.org/x/vuln/cmd/govulncheck@latest
+    command -v golangci-lint &>/dev/null \
+        || curl -fsSL https://golangci-lint.run/install.sh | sh -s -- -b "$gobin"
+    echo "Go tools: dlv, govulncheck, golangci-lint present"
+}
+
 install_go
+install_go_tools
