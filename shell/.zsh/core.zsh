@@ -9,6 +9,12 @@ if [[ "$OSTYPE" == "darwin"* ]] && type brew &>/dev/null; then
     rm -f /usr/local/share/zsh/site-functions/_brew_cask 2>/dev/null
 fi
 
+# macOS starts shells at 256 open files; raise the soft limit to the
+# per-process ceiling. Linux defaults are already far higher.
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    ulimit -n "$(sysctl -n kern.maxfilesperproc)"
+fi
+
 # Dynamically load plugins based on what's available
 plugins=()
 [ -d "$ZSH/plugins/git" ] && plugins+=(git)

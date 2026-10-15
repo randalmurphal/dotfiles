@@ -464,32 +464,58 @@ install_section_rust() {
     fi
 }
 
+# Neovim's latest release into ~/.local/opt/nvim-<tag>, with ~/.local/opt/nvim
+# and ~/.local/bin/nvim pointing at it. Rerunning upgrades to a newer release.
+install_neovim_release() {
+    local arch tag opt="$HOME/.local/opt"
+    case "$(uname -m)" in
+        x86_64) arch="x86_64" ;;
+        aarch64|arm64) arch="arm64" ;;
+        *) error "Unsupported architecture for Neovim: $(uname -m)"; return 1 ;;
+    esac
+
+    tag="$(curl -fsSL https://api.github.com/repos/neovim/neovim/releases/latest | jq -er '.tag_name')" || {
+        error "Could not look up the latest Neovim release"
+        return 1
+    }
+
+    if [[ -x "$opt/nvim-$tag/bin/nvim" ]]; then
+        info "Neovim $tag already installed"
+    else
+        step "Installing Neovim $tag from its official release..."
+        local tmpdir
+        tmpdir="$(mktemp -d)"
+        if ! curl -fsSL "https://github.com/neovim/neovim/releases/download/$tag/nvim-linux-$arch.tar.gz" \
+                | tar -xz -C "$tmpdir"; then
+            rm -rf "$tmpdir"
+            error "Neovim $tag download failed"
+            return 1
+        fi
+        mkdir -p "$opt"
+        mv "$tmpdir/nvim-linux-$arch" "$opt/nvim-$tag"
+        rm -rf "$tmpdir"
+    fi
+
+    mkdir -p "$HOME/.local/bin"
+    ln -sfn "nvim-$tag" "$opt/nvim"
+    ln -sfn "$opt/nvim/bin/nvim" "$HOME/.local/bin/nvim"
+    find "$opt" -maxdepth 1 -type d -name 'nvim-v*' ! -name "nvim-$tag" -exec rm -rf {} +
+    success "Neovim $("$HOME/.local/bin/nvim" --version | head -1)"
+}
+
 install_section_neovim() {
     section "Neovim"
 
-    # Install neovim
-    if command_exists nvim; then
-        info "Neovim already installed ($(nvim --version | head -1))"
+    # Install neovim: Homebrew on macOS, the official release everywhere else
+    # (distro packages lag by several minor versions).
+    if [[ "$DOTFILES_OS" == "macos" ]]; then
+        if command_exists nvim; then
+            info "Neovim already installed ($(nvim --version | head -1))"
+        else
+            brew install neovim
+        fi
     else
-        step "Installing Neovim..."
-        case "$DOTFILES_OS" in
-            debian)
-                # Use AppImage for a recent version
-                local nvim_url="https://github.com/neovim/neovim/releases/latest/download/nvim.appimage"
-                local nvim_dest="$HOME/.local/bin/nvim"
-                mkdir -p "$HOME/.local/bin"
-                curl -fsSL "$nvim_url" -o "$nvim_dest"
-                chmod +x "$nvim_dest"
-                success "Neovim AppImage installed to $nvim_dest"
-                ;;
-            fedora)  sudo dnf install -y -q neovim ;;
-            arch)    sudo pacman -S --noconfirm --needed neovim ;;
-            opensuse) sudo zypper install -y neovim ;;
-            macos)   brew install neovim ;;
-            *)
-                warn "Cannot install Neovim automatically on $DOTFILES_OS"
-                ;;
-        esac
+        install_neovim_release || return 1
     fi
 
     # Clone config
