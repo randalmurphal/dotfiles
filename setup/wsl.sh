@@ -100,8 +100,39 @@ configure_windows_interop() {
     echo "Windows executable interop repaired"
 }
 
+# earlyoom: kill the biggest test runner/browser before the kernel OOM killer
+# (or a frozen VM) takes out agents and databases. Regexes match the 15-char
+# process name (comm); the java/postgres/mongod entries keep container DBs alive.
+configure_earlyoom() {
+    local prefer='^(chrome-headless|chrome|chromium|MainThread|node|vitest|pytest|.*[.]test)$'
+    local avoid='^(systemd|systemd-logind|init|dbus-broker|dnf|sshd|zsh|bash|claude|codex|agent-overflow|conmon|postgres|mongod|java|qdrant|valkey-server)$|^tmux'
+    # Act at 5% RAM available and 10% swap free, before swap thrash freezes the VM.
+    local args="-m 5 -s 10 -r 3600 --prefer '$prefer' --avoid '$avoid'"
+
+    if ! rpm -q earlyoom &>/dev/null && ! dpkg -s earlyoom &>/dev/null; then
+        if command -v dnf &>/dev/null; then
+            sudo dnf install -y earlyoom
+        elif command -v apt-get &>/dev/null; then
+            sudo apt-get install -y -qq earlyoom
+        else
+            echo "earlyoom: unsupported package manager" >&2
+            return 1
+        fi
+    fi
+
+    printf 'EARLYOOM_ARGS="%s"\n' "$args" | sudo tee /etc/default/earlyoom >/dev/null
+    sudo systemctl enable earlyoom.service
+    sudo systemctl restart earlyoom.service
+    systemctl is-active --quiet earlyoom.service || {
+        echo "earlyoom failed to start; see: journalctl -u earlyoom" >&2
+        return 1
+    }
+    echo "earlyoom running"
+}
+
 configure_wsl_conf
 configure_windows_interop
 configure_wslconfig
+configure_earlyoom
 
 echo "WSL setup complete. Run 'wsl --shutdown' in Windows Terminal to apply."
