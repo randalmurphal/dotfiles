@@ -73,3 +73,5 @@
     wta = worktree add
     wtr = worktree remove
     cleanup = "!git branch --merged | grep -v '\\*\\|main\\|master\\|develop' | xargs -n 1 git branch -d"
+[fetch]
+    prune = true
