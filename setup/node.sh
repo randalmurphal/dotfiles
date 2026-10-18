@@ -15,13 +15,16 @@ install_node() {
     \. "$nvm_dir/nvm.sh"
 
     local node_arg="$NODE_VERSION"
-    # lts/* is the form both `nvm install` and `nvm alias` accept; --lts is install-only.
     [[ "$node_arg" == "lts" ]] && node_arg="lts/*"
     [[ "$node_arg" == "latest" ]] && node_arg="node"
 
     echo "Installing Node.js ($NODE_VERSION)..."
     nvm install "$node_arg"
-    nvm alias default "$node_arg"
+    # Pin default to the concrete version (v24.x), not the lts/* alias name:
+    # shell/.zsh/toolchains.zsh puts that version's bin on PATH without loading nvm.
+    local version
+    version="$(nvm version "$node_arg")"
+    nvm alias default "$version"
 
     echo "Node.js $(node --version) installed"
 
