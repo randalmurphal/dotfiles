@@ -9,7 +9,9 @@ cargo build --release
 
 echo "Installing binary..."
 mkdir -p ~/.local/bin
-cp target/release/sysinfo-daemon ~/.local/bin/
+# Rename into place: copying over the running daemon fails with "Text file busy".
+cp target/release/sysinfo-daemon ~/.local/bin/sysinfo-daemon.new
+mv -f ~/.local/bin/sysinfo-daemon.new ~/.local/bin/sysinfo-daemon
 
 # Platform-specific service installation
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -27,11 +29,16 @@ else
 
     echo "Enabling and starting service..."
     systemctl --user daemon-reload
-    systemctl --user enable --now sysinfo
+    systemctl --user enable sysinfo
+    # restart, not start: a rerun must swap in the binary just installed.
+    systemctl --user restart sysinfo
 fi
 
 echo "Verifying..."
-sleep 0.5
+for _ in $(seq 1 50); do
+    [[ -s /tmp/sysinfo ]] && break
+    sleep 0.1
+done
 cat /tmp/sysinfo
 
 echo ""

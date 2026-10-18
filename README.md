@@ -57,7 +57,7 @@ bash install.sh --section shell    # just one section
 bash install.sh --section shell --section git  # a few sections
 ```
 
-Sections: `packages`, `tools`, `shell`, `git`, `tmux`, `wezterm`, `python`, `node`, `go`, `rust`, `neovim`, `claude`, `codex`, `wsl`
+Sections: `packages`, `tools`, `shell`, `git`, `tmux`, `wezterm`, `python`, `node`, `go`, `rust`, `sysinfo`, `neovim`, `claude`, `codex`, `wsl`
 
 ## After Install
 

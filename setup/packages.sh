@@ -60,6 +60,8 @@ install_packages() {
             strace lsof psmisc inotify-tools rsync zip bash-completion \
             postgresql-client
         install_optional_apt_packages zoxide eza btop git-delta lazygit tldr
+        # pyodbc (m32rimm fisio) builds against unixODBC.
+        install_optional_apt_packages unixodbc unixodbc-dev
 
     elif command -v dnf &>/dev/null; then
         local distro_id="unknown"
@@ -85,6 +87,8 @@ install_packages() {
             strace lsof psmisc inotify-tools rsync zip bash-completion \
             postgresql
         install_optional_dnf_packages zoxide eza lazygit direnv tldr
+        # pyodbc (m32rimm fisio) builds against unixODBC.
+        install_optional_dnf_packages unixODBC unixODBC-devel
 
     elif command -v pacman &>/dev/null; then
         sudo pacman -S --noconfirm --needed \

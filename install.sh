@@ -464,6 +464,30 @@ install_section_rust() {
     fi
 }
 
+install_section_sysinfo() {
+    section "sysinfo-daemon"
+    local script="$DOTFILES_DIR/extras/sysinfo-daemon/install.sh"
+    if [[ ! -f "$script" ]]; then
+        error "extras/sysinfo-daemon/install.sh not found"
+        return 1
+    fi
+    # setup/rust.sh installs rustup in a child shell, so cargo is not on this
+    # shell's PATH yet on a fresh machine.
+    if ! command_exists cargo && [[ -f "$HOME/.cargo/env" ]]; then
+        \. "$HOME/.cargo/env"
+    fi
+    if ! command_exists cargo; then
+        error "cargo not found; run the rust section first"
+        return 1
+    fi
+    if bash "$script"; then
+        success "sysinfo-daemon installed (WezTerm status bar)"
+    else
+        error "sysinfo-daemon install failed"
+        return 1
+    fi
+}
+
 # Neovim's latest release into ~/.local/opt/nvim-<tag>, with ~/.local/opt/nvim
 # and ~/.local/bin/nvim pointing at it. Rerunning upgrades to a newer release.
 install_neovim_release() {
@@ -568,6 +592,16 @@ install_section_claude() {
 install_section_codex() {
     section "Codex"
 
+    # setup/node.sh installs nvm in a child shell, so its node is not on this
+    # shell's PATH yet; without loading it, npm resolves to a root-owned
+    # system install and the global install fails with EACCES.
+    if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+        export NVM_DIR="$HOME/.nvm"
+        set +u
+        \. "$NVM_DIR/nvm.sh"
+        set -u
+    fi
+
     # Install Codex CLI
     if command_exists codex; then
         info "Codex CLI already installed"
@@ -634,7 +668,7 @@ Options:
 
 Sections:
   packages, tools, shell, git, tmux, wezterm, python, node, go, rust,
-  neovim, claude, codex, wsl
+  sysinfo, neovim, claude, codex, wsl
 
 Examples:
   $(basename "$0")                            # Interactive mode
@@ -699,6 +733,7 @@ main() {
         "node|Node.js (nvm)|install_section_node|0"
         "go|Go|install_section_go|0"
         "rust|Rust (rustup)|install_section_rust|0"
+        "sysinfo|sysinfo-daemon (WezTerm status)|install_section_sysinfo|0"
         "neovim|Neovim|install_section_neovim|0"
         "claude|Claude Code|install_section_claude|0"
         "codex|Codex|install_section_codex|0"
