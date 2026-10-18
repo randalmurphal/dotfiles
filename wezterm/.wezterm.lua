@@ -17,9 +17,10 @@ local resurrect = wezterm.plugin.require("https://github.com/MLFlexer/resurrect.
 config.check_for_updates = false
 
 -- Default to WSL on Windows
+-- `dotfiles sync` rewrites the fallback below to the distro it runs from.
 -- Set WSL_DISTRO in the Windows environment to override (e.g., export WSL_DISTRO="Ubuntu-24.04")
 if wezterm.target_triple:find('windows') then
-  local distro = os.getenv('WSL_DISTRO') or 'AlmaLinux-10'
+  local distro = os.getenv('WSL_DISTRO') or 'AlmaLinux'
   config.default_domain = 'WSL:' .. distro
   config.wsl_domains = {
     {

@@ -94,9 +94,8 @@ doctor() {
         local win_wezterm="$win_home/.wezterm.lua"
         if [[ -n "$win_home" && -f "$win_wezterm" ]]; then
             # Check if Windows copy is current
-            local src="$DOTFILES_DIR/wezterm/.wezterm.lua"
-            if [[ -f "$src" ]] && ! diff -q "$src" "$win_wezterm" &>/dev/null; then
-                warn ".wezterm.lua (Windows copy is stale - run: cp $src $win_wezterm)"
+            if ! render_windows_wezterm 2>/dev/null | diff -q - "$win_wezterm" &>/dev/null; then
+                warn ".wezterm.lua (Windows copy is stale - run: dotfiles sync)"
             else
                 ok ".wezterm.lua (Windows copy)"
             fi
@@ -275,19 +274,42 @@ sync() {
         info "sync is only needed on WSL"
         return 0
     fi
-    local win_home
-    win_home="$(wslpath "$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')" 2>/dev/null || echo "")"
-    if [[ -z "$win_home" || ! -d "$win_home" ]]; then
+    local windows_profile win_home=""
+    # From /mnt/c, with stdin closed: cmd.exe in a Linux cwd warns about UNC
+    # paths, and it reads (and eats) any piped stdin.
+    windows_profile="$(cd /mnt/c && cmd.exe /d /c 'echo %USERPROFILE%' </dev/null 2>/dev/null | tr -d '\r')" || true
+    # wslpath "" prints ".", which would write into the current directory.
+    if [[ -n "$windows_profile" ]]; then
+        win_home="$(wslpath -u "$windows_profile" 2>/dev/null || true)"
+    fi
+    if [[ "$win_home" != /* || ! -d "$win_home" ]]; then
         fail "Could not detect Windows home directory"
         return 1
     fi
+    local rendered
+    rendered="$(render_windows_wezterm)" || return 1
+    printf '%s\n' "$rendered" > "$win_home/.wezterm.lua"
+    ok "Copied .wezterm.lua to Windows ($win_home), default distro $WSL_DISTRO_NAME"
+}
+
+# The Windows copy opens the distro it was synced from. WSL_DISTRO in the
+# Windows environment still overrides it when WezTerm starts.
+render_windows_wezterm() {
     local src="$DOTFILES_DIR/wezterm/.wezterm.lua"
-    if [[ -f "$src" ]]; then
-        cp "$src" "$win_home/.wezterm.lua"
-        ok "Copied .wezterm.lua to Windows ($win_home)"
-    else
+    local pattern="os.getenv('WSL_DISTRO') or '[^']*'"
+    if [[ ! -f "$src" ]]; then
         fail "Source not found: $src"
+        return 1
     fi
+    if [[ -z "${WSL_DISTRO_NAME:-}" ]]; then
+        fail "WSL_DISTRO_NAME is not set; cannot name the distro for WezTerm"
+        return 1
+    fi
+    if ! grep -q "$pattern" "$src"; then
+        fail "$src no longer has the WSL_DISTRO fallback this sync rewrites"
+        return 1
+    fi
+    sed "s/$pattern/os.getenv('WSL_DISTRO') or '$WSL_DISTRO_NAME'/" "$src"
 }
 
 case "${1:-help}" in

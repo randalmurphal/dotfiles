@@ -54,7 +54,7 @@ These files are NOT tracked in git:
 
 Always edit files in this repo, not the symlinked copies in `~`. After editing:
 - Shell configs: `source ~/.zshrc` to reload
-- WezTerm (WSL): Must copy to Windows side: `cp wezterm/.wezterm.lua /mnt/c/Users/$USER/.wezterm.lua`
+- WezTerm (WSL): Must copy to Windows side with `dotfiles sync`, which also sets the default distro to the one it runs from (a plain `cp` leaves the repo's fallback name)
 - Tmux: `prefix + r` to reload
 
 ## Testing Changes

@@ -375,25 +375,11 @@ install_section_wezterm() {
 
     if [[ "$IS_WSL" -eq 1 ]]; then
         step "Copying WezTerm config to Windows side..."
-        local win_home
-        win_home="$(cmd.exe /C 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')" || true
-        if [[ -n "$win_home" ]]; then
-            # Convert Windows path to WSL path
-            local wsl_win_home
-            wsl_win_home="$(wslpath -u "$win_home" 2>/dev/null || true)"
-            if [[ -n "$wsl_win_home" && -d "$wsl_win_home" ]]; then
-                local src="$DOTFILES_DIR/wezterm/.wezterm.lua"
-                if [[ -f "$src" ]]; then
-                    cp "$src" "$wsl_win_home/.wezterm.lua"
-                    success "Copied .wezterm.lua to $wsl_win_home"
-                else
-                    warn "wezterm/.wezterm.lua not found in stow package"
-                fi
-            else
-                warn "Could not resolve Windows home directory"
-            fi
+        # dotfiles sync owns the copy: it names this distro as WezTerm's default.
+        if "$DOTFILES_DIR/bin/.local/bin/dotfiles" sync; then
+            success "WezTerm opens ${WSL_DISTRO_NAME:-this distro} by default"
         else
-            warn "Could not detect Windows USERPROFILE"
+            warn "Could not copy .wezterm.lua to Windows (run: dotfiles sync)"
         fi
     fi
 
