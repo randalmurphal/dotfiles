@@ -7,6 +7,22 @@
 BLESH="$HOME/.local/share/blesh/ble.sh"
 if [[ -f "$BLESH" ]]; then
     source -- "$BLESH" --attach=none
+
+    # Alt-Backspace deletes the previous word, as in zsh (ble.sh copies it)
+    blehook/eval-after-load keymap_emacs '
+        ble-bind -f M-DEL kill-backward-cword
+        ble-bind -f M-C-? kill-backward-cword
+        ble-bind -f M-BS kill-backward-cword
+        ble-bind -f M-C-h kill-backward-cword'
+
+    # Colors as zsh-syntax-highlighting and zsh-autosuggestions had them:
+    # commands green, keywords and quotes yellow, an unknown command plain
+    # red (ble.sh paints builtins red and errors white on red), suggestions gray
+    ble-face command_builtin=fg=green command_builtin_dot=fg=green command_alias=fg=green
+    ble-face command_function=fg=green command_file=fg=green command_jobs=fg=green
+    ble-face command_keyword=fg=yellow syntax_quoted=fg=yellow syntax_quotation=fg=yellow
+    ble-face syntax_error=fg=red,bold argument_error=fg=red filename_warning=none
+    ble-face auto_complete=fg=242
 else
     echo "[WARN] ble.sh not found. Run 'bash install.sh --section shell' in dotfiles." >&2
 fi
