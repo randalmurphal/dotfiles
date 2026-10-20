@@ -8,7 +8,7 @@ install_node() {
 
     if [[ ! -s "$nvm_dir/nvm.sh" ]]; then
         echo "Installing nvm..."
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | PROFILE=/dev/null bash
     fi
 
     export NVM_DIR="$nvm_dir"
@@ -21,7 +21,7 @@ install_node() {
     echo "Installing Node.js ($NODE_VERSION)..."
     nvm install "$node_arg"
     # Pin default to the concrete version (v24.x), not the lts/* alias name:
-    # shell/.zsh/toolchains.zsh puts that version's bin on PATH without loading nvm.
+    # shell/.bash/toolchains.sh puts that version's bin on PATH without loading nvm.
     local version
     version="$(nvm version "$node_arg")"
     nvm alias default "$version"

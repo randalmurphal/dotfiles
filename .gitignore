@@ -1,5 +1,6 @@
 # Machine-local configs (created by installer, not tracked)
 shell/.zsh/local.zsh
+shell/.bash/local.sh
 
 # Credentials (never commit)
 *.credentials

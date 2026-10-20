@@ -159,14 +159,16 @@ stow_package() {
     local conflicts
     if ! conflicts="$(stow --dir="$DOTFILES_DIR" --target="$target" --no-folding --simulate 2>&1 "$pkg")"; then
         # Extract conflicting paths from stow error output
-        # Stow reports conflicts as:
+        # Stow 2.3 reports conflicts as:
         #   "existing target is not owned by stow: <path>"
         #   "existing target is neither a link nor a directory: <path>"
+        # Stow 2.4 as:
+        #   "cannot stow <source> over existing target <path> since ..."
         local conflict_files
         conflict_files="$(echo "$conflicts" \
-            | grep -E 'existing target is (not owned by stow|neither a link nor a directory):' \
-            | sed 's/.*existing target is [^:]*: //' \
-            | sed 's/^[[:space:]]*//' \
+            | sed -nE \
+                -e 's/.*existing target is (not owned by stow|neither a link nor a directory): *//p' \
+                -e 's/.*over existing target (.*) since .*/\1/p' \
             || true)"
 
         if [[ -n "$conflict_files" ]]; then
@@ -239,61 +241,94 @@ install_section_tools() {
 install_section_shell() {
     section "Shell"
 
-    # Create ~/.zsh as a real directory so stow creates per-file symlinks
+    # Create ~/.bash as a real directory so stow creates per-file symlinks
     # (prevents stow from folding the whole dir into one symlink)
-    mkdir -p "$HOME/.zsh"
+    mkdir -p "$HOME/.bash"
 
     stow_package shell || return 1
 
-    # oh-my-zsh
-    if [[ -d "$HOME/.oh-my-zsh" ]]; then
-        info "oh-my-zsh already installed"
+    # ble.sh: autosuggestions, syntax highlighting, completion menu. Updates
+    # itself with ble-update.
+    if [[ -f "$HOME/.local/share/blesh/ble.sh" ]]; then
+        info "ble.sh already installed (update with: ble-update)"
     else
-        step "Installing oh-my-zsh..."
-        RUNZSH=no KEEP_ZSHRC=yes sh -c \
-            "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" || {
-            error "oh-my-zsh installation failed"
+        step "Installing ble.sh..."
+        local tmp
+        tmp="$(mktemp -d)"
+        if curl -fsSL https://github.com/akinomyoga/ble.sh/releases/download/nightly/ble-nightly.tar.xz \
+                | tar -xJf - -C "$tmp" \
+            && bash "$tmp/ble-nightly/ble.sh" --install "$HOME/.local/share"; then
+            rm -rf "$tmp"
+            success "ble.sh installed"
+        else
+            rm -rf "$tmp"
+            error "ble.sh installation failed"
             return 1
-        }
+        fi
     fi
 
-    # Plugins
-    local zsh_custom="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
-
-    if [[ -d "$zsh_custom/plugins/zsh-autosuggestions" ]]; then
-        info "zsh-autosuggestions already installed"
-    else
-        step "Installing zsh-autosuggestions..."
-        git clone --depth 1 https://github.com/zsh-users/zsh-autosuggestions \
-            "$zsh_custom/plugins/zsh-autosuggestions" || return 1
-    fi
-
-    if [[ -d "$zsh_custom/plugins/zsh-syntax-highlighting" ]]; then
-        info "zsh-syntax-highlighting already installed"
-    else
-        step "Installing zsh-syntax-highlighting..."
-        git clone --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting \
-            "$zsh_custom/plugins/zsh-syntax-highlighting" || return 1
-    fi
-
-    # Local zsh config template (lives alongside stow symlinks, not tracked)
-    local local_zsh="$HOME/.zsh/local.zsh"
-    if [[ ! -f "$local_zsh" ]]; then
-        cat > "$local_zsh" << 'LOCALZSH'
-# ~/.zsh/local.zsh - Machine-specific ZSH configuration
-# This file is NOT managed by stow and is gitignored.
+    # Local bash config template (lives alongside stow symlinks, not tracked)
+    local local_sh="$HOME/.bash/local.sh"
+    if [[ ! -f "$local_sh" ]]; then
+        cat > "$local_sh" << 'LOCALSH'
+# ~/.bash/local.sh - Machine-specific Bash configuration
+# This file is NOT managed by stow and is gitignored. It loads before
+# everything else in .bashrc, agent shells included.
 # Add machine-specific aliases, exports, paths, etc. here.
 
 # Example:
 # export WORK_DIR="$HOME/projects"
 # alias deploy='./scripts/deploy.sh'
-LOCALZSH
-        success "Created $local_zsh template"
+
+# A TLS-inspecting network: point the toolchains that ship their own trust
+# stores at the system bundle (add the same three to Claude Code's
+# settings.json "env", which agent commands read instead of this file).
+#   RHEL/Fedora: /etc/pki/tls/certs/ca-bundle.crt
+#   Debian:      /etc/ssl/certs/ca-certificates.crt
+# export SSL_CERT_FILE=/etc/pki/tls/certs/ca-bundle.crt
+# export NODE_EXTRA_CA_CERTS=/etc/pki/tls/certs/ca-bundle.crt
+# export REQUESTS_CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt
+LOCALSH
+        success "Created $local_sh template"
     else
-        info "$local_zsh already exists"
+        info "$local_sh already exists"
     fi
 
+    set_login_shell_bash
+
     success "Shell setup complete"
+}
+
+# Make bash the login shell, so terminals, tmux and every agent (Claude Code,
+# Codex, Agent Overflow) run bash. Codex reads the login shell from the
+# account database and has no setting of its own.
+set_login_shell_bash() {
+    local bash_path current
+    bash_path="$(command -v bash)"
+    if [[ "$DOTFILES_OS" == "macos" ]]; then
+        current="$(dscl . -read "$HOME" UserShell 2>/dev/null | awk '{print $2}')"
+    else
+        current="$(getent passwd "$USER" | cut -d: -f7)"
+    fi
+
+    if [[ "$current" == "$bash_path" ]]; then
+        info "Login shell is already $bash_path"
+        return 0
+    fi
+    if ! confirm "Change login shell from ${current:-unknown} to $bash_path?"; then
+        info "Login shell left as $current (change later: chsh -s $bash_path)"
+        return 0
+    fi
+    # chsh only accepts shells listed in /etc/shells (Homebrew's bash is not)
+    if ! grep -qx "$bash_path" /etc/shells; then
+        step "Adding $bash_path to /etc/shells..."
+        echo "$bash_path" | sudo tee -a /etc/shells >/dev/null || return 1
+    fi
+    chsh -s "$bash_path" || {
+        error "chsh failed (run it yourself: chsh -s $bash_path)"
+        return 1
+    }
+    success "Login shell is now $bash_path (takes effect in new sessions)"
 }
 
 install_section_git() {
@@ -459,8 +494,8 @@ install_section_sysinfo() {
     fi
     # setup/rust.sh installs rustup in a child shell, so cargo is not on this
     # shell's PATH yet on a fresh machine.
-    if ! command_exists cargo && [[ -f "$HOME/.cargo/env" ]]; then
-        \. "$HOME/.cargo/env"
+    if ! command_exists cargo && [[ -x "$HOME/.cargo/bin/cargo" ]]; then
+        export PATH="$HOME/.cargo/bin:$PATH"
     fi
     if ! command_exists cargo; then
         error "cargo not found; run the rust section first"
@@ -711,7 +746,7 @@ main() {
     local -a sections=(
         "packages|System packages|install_section_packages|0"
         "tools|User tools|install_section_tools|0"
-        "shell|Shell (zsh + oh-my-zsh)|install_section_shell|0"
+        "shell|Shell (bash + ble.sh)|install_section_shell|0"
         "git|Git configuration|install_section_git|0"
         "tmux|Tmux + TPM|install_section_tmux|0"
         "wezterm|WezTerm|install_section_wezterm|0"

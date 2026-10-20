@@ -11,9 +11,9 @@ install_rust() {
     fi
 
     echo "Installing Rust via rustup..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain stable
 
-    source "$HOME/.cargo/env" 2>/dev/null || true
+    export PATH="$HOME/.cargo/bin:$PATH"
 
     if command -v rustc &>/dev/null; then
         echo "Rust $(rustc --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+') installed"

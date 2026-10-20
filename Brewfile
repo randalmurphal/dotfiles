@@ -7,7 +7,8 @@ brew "tree"
 brew "stow"
 
 # Shell
-brew "zsh"
+brew "bash"
+brew "bash-completion@2"
 brew "tmux"
 brew "neovim"
 

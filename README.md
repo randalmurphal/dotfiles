@@ -22,7 +22,7 @@ bash install.sh --all  # no prompts
 ## What's In Here
 
 ```
-shell/       zsh config (modular: core, aliases, functions, path, toolchains)
+shell/       bash config (modular: core, aliases, functions, path, toolchains) + .inputrc; the old zsh config stays, unmaintained
 git/         gitconfig with delta, aliases, global gitignore
 tmux/        tmux.conf (Ctrl+Space prefix, dark purple theme, TPM)
 wezterm/     wezterm.lua (dark purple theme, resurrect plugin, sysinfo status bar)
@@ -38,11 +38,13 @@ docs/        cheat sheets (tmux, nvim, bash)
 
 **Lazy-loaded nvm.** The default Node version's bin goes straight on PATH; `nvm.sh` itself (~2 seconds) loads only when you call `nvm`. No stubs for `node`/`npm`/`pnpm`: a stub can only shadow the real binary, and Claude Code's shell snapshot carried the stubs without `NVM_DIR`, which is exactly how it did.
 
-**Agent shells get environment only.** Claude Code and Codex source `.zshrc` from a non-interactive login shell and snapshot the result into every command. `.zshrc` detects that (non-interactive, or the agents' env markers) and loads only `local.zsh`, `path.zsh` and `toolchains.zsh`: no oh-my-zsh, no prompt hooks, no zoxide, no aliases, plus `no_nomatch no_equals bsd_echo` so globs, `===` and `echo` behave like bash. Your interactive shell is untouched. `dotfiles doctor` checks it.
+**Bash, with ble.sh.** Bash is the login shell, so terminals, tmux and every agent run it; zsh's defaults (an unmatched glob aborting the command, `$var[...]` and `$var:x` parsed as subscripts and modifiers, unquoted variables not word-splitting, heredocs needing a temp file) broke agent commands written for bash. Codex has no shell setting, so the login shell is the only way to give it bash. [ble.sh](https://github.com/akinomyoga/ble.sh) brings the zsh niceties: autosuggestions (Ctrl-E accepts), syntax highlighting, a completion menu; `~/.inputrc` adds case-insensitive completion and Up/Down prefix history search.
+
+**Agent shells get environment only.** Claude Code and Codex source `.bashrc` from a non-interactive login shell and snapshot the result into every command; Agent Overflow probes PATH with `bash -ilc`. `.bashrc` loads `local.sh`, `path.sh` and `toolchains.sh`, then returns for any shell that is not an interactive terminal (or carries the agents' env markers), with all aliases removed: no ble.sh, no prompt hooks, no zoxide. Codex carries the exports into its commands; Claude Code carries functions only and takes PATH from the process that launched it, so a variable Claude needs goes in its `settings.json` `env`. `dotfiles doctor` checks it.
 
 **Stow, not symlink scripts.** One command to link, one to unlink, conflict detection built in. No hand-rolled symlink management to debug at 2am.
 
-**Machine-local overrides.** `~/.zsh/local.zsh` and `~/.gitconfig.local` for stuff that doesn't belong in a repo (work email, `DEFAULT_VENV` path, machine-specific aliases). Never tracked, never committed.
+**Machine-local overrides.** `~/.bash/local.sh` and `~/.gitconfig.local` for stuff that doesn't belong in a repo (work email, `DEFAULT_VENV` path, machine-specific aliases). Never tracked, never committed.
 
 **Separate config repos for AI tools.** Claude Code and Codex configs live in their own repos ([claude-config](https://github.com/randalmurphal/claude-config), [codex-config](https://github.com/randalmurphal/codex-config)) -- the installer clones them into `~/.claude` and `~/.codex`.
 

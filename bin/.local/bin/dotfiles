@@ -67,12 +67,14 @@ doctor() {
     echo ""
 
     echo -e "${CYAN}Symlinks${RESET}"
-    check_symlink "$HOME/.zshrc" ".zshrc"
-    check_symlink "$HOME/.zsh/core.zsh" ".zsh/core.zsh"
-    check_symlink "$HOME/.zsh/aliases.zsh" ".zsh/aliases.zsh"
-    check_symlink "$HOME/.zsh/functions.zsh" ".zsh/functions.zsh"
-    check_symlink "$HOME/.zsh/path.zsh" ".zsh/path.zsh"
-    check_symlink "$HOME/.zsh/toolchains.zsh" ".zsh/toolchains.zsh"
+    check_symlink "$HOME/.bashrc" ".bashrc"
+    check_symlink "$HOME/.bash_profile" ".bash_profile"
+    check_symlink "$HOME/.inputrc" ".inputrc"
+    check_symlink "$HOME/.bash/core.sh" ".bash/core.sh"
+    check_symlink "$HOME/.bash/aliases.sh" ".bash/aliases.sh"
+    check_symlink "$HOME/.bash/functions.sh" ".bash/functions.sh"
+    check_symlink "$HOME/.bash/path.sh" ".bash/path.sh"
+    check_symlink "$HOME/.bash/toolchains.sh" ".bash/toolchains.sh"
     check_symlink "$HOME/.gitconfig" ".gitconfig"
     check_symlink "$HOME/.gitignore_global" ".gitignore_global"
     check_symlink "$HOME/.tmux.conf" ".tmux.conf"
@@ -108,11 +110,20 @@ doctor() {
 
     echo ""
     echo -e "${CYAN}Shell${RESET}"
-    check_cmd zsh "ZSH"
-    if [[ -d "$HOME/.oh-my-zsh" ]]; then ok "oh-my-zsh"; else fail "oh-my-zsh (not installed)"; fi
-    if [[ -d "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" ]]; then ok "zsh-autosuggestions"; else fail "zsh-autosuggestions"; fi
-    if [[ -d "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" ]]; then ok "zsh-syntax-highlighting"; else fail "zsh-syntax-highlighting"; fi
-    if [[ -f "$HOME/.zsh/local.zsh" ]]; then ok "local.zsh (machine overrides)"; else skip "local.zsh (not created yet)"; fi
+    check_cmd bash "Bash"
+    local login_shell
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        login_shell="$(dscl . -read "$HOME" UserShell 2>/dev/null | awk '{print $2}')"
+    else
+        login_shell="$(getent passwd "$USER" | cut -d: -f7)"
+    fi
+    if [[ "$(basename "${login_shell:-none}")" == "bash" ]]; then
+        ok "login shell is bash ($login_shell)"
+    else
+        fail "login shell is ${login_shell:-unknown}, not bash (Codex and new terminals follow it; run: chsh -s \"\$(command -v bash)\")"
+    fi
+    if [[ -f "$HOME/.local/share/blesh/ble.sh" ]]; then ok "ble.sh"; else fail "ble.sh (not installed; run: bash install.sh --section shell)"; fi
+    if [[ -f "$HOME/.bash/local.sh" ]]; then ok "local.sh (machine overrides)"; else skip "local.sh (not created yet)"; fi
 
     echo ""
     echo -e "${CYAN}Tools${RESET}"
@@ -161,26 +172,37 @@ doctor() {
     done
 
     echo ""
-    echo -e "${CYAN}Agent shell${RESET} ${DIM}(.zshrc as Claude Code / Codex snapshot it: non-interactive login, cold PATH)${RESET}"
-    local probe node_path alias_count chpwd opts
-    probe="$(env -i HOME="$HOME" USER="${USER:-}" PATH=/usr/bin:/bin zsh -lc '
-        source ~/.zshrc
-        printf "node=%s\n" "$(whence -p node)"
+    echo -e "${CYAN}Agent shell${RESET} ${DIM}(.bashrc as Claude Code / Codex snapshot it: non-interactive login, cold PATH)${RESET}"
+    local probe node_path alias_count ble prompt_cmd dupes
+    probe="$(env -i HOME="$HOME" USER="${USER:-}" PATH=/usr/bin:/bin bash -lc '
+        source ~/.bashrc
+        printf "node=%s\n" "$(type -P node)"
         printf "aliases=%s\n" "$(alias | wc -l | tr -d " ")"
-        printf "chpwd=%s\n" "$(typeset -f chpwd >/dev/null 2>&1 && echo y || echo n)"
-        printf "opts=%s\n" "$(setopt | grep -cE "^(nonomatch|noequals|bsdecho)$")"
+        printf "ble=%s\n" "${BLE_VERSION:-none}"
+        printf "prompt_cmd=%s\n" "${PROMPT_COMMAND:-none}"
+        printf "dupes=%s\n" "$(tr : "\n" <<< "$PATH" | sort | uniq -d | wc -l | tr -d " ")"
     ' 2>&1)"
     node_path="$(sed -n 's/^node=//p' <<< "$probe")"
     alias_count="$(sed -n 's/^aliases=//p' <<< "$probe")"
-    chpwd="$(sed -n 's/^chpwd=//p' <<< "$probe")"
-    opts="$(sed -n 's/^opts=//p' <<< "$probe")"
+    ble="$(sed -n 's/^ble=//p' <<< "$probe")"
+    prompt_cmd="$(sed -n 's/^prompt_cmd=//p' <<< "$probe")"
+    dupes="$(sed -n 's/^dupes=//p' <<< "$probe")"
     if [[ -x "$node_path" ]]; then ok "node resolves to a binary ($node_path)"; else fail "node does not resolve to a binary (got '${node_path:-nothing}')"; fi
     if [[ "$alias_count" == "0" ]]; then ok "no aliases"; else fail "${alias_count:-?} aliases leak into agent shells"; fi
-    if [[ "$chpwd" == "n" ]]; then ok "no chpwd hook"; else fail "chpwd hook leaks into agent shells (every tool output gets an OSC 7 prefix)"; fi
-    if [[ "$opts" == "3" ]]; then ok "bash-like options (no_nomatch no_equals bsd_echo)"; else fail "bash-like options not set (${opts:-?}/3)"; fi
-    if grep -qvE '^(node|aliases|chpwd|opts)=' <<< "$probe"; then
+    if [[ "$ble" == "none" ]]; then ok "no ble.sh"; else fail "ble.sh ($ble) loads in agent shells"; fi
+    if [[ "$prompt_cmd" == "none" ]]; then ok "no prompt hooks"; else fail "PROMPT_COMMAND leaks into agent shells ($prompt_cmd)"; fi
+    if [[ "$dupes" == "0" ]]; then ok "no duplicate PATH entries after sourcing .bashrc twice"; else fail "$dupes duplicate PATH entries"; fi
+    if grep -qvE '^(node|aliases|ble|prompt_cmd|dupes)=' <<< "$probe"; then
         warn "agent shell startup printed output (should be silent):"
-        grep -vE '^(node|aliases|chpwd|opts)=' <<< "$probe" | sed 's/^/      /'
+        grep -vE '^(node|aliases|ble|prompt_cmd|dupes)=' <<< "$probe" | sed 's/^/      /'
+    fi
+    # Agent Overflow reads PATH from `bash -ilc`: interactive flag, but a
+    # command string, so it must get environment only and return promptly
+    local ao_probe
+    if ao_probe="$(timeout 10 env -i HOME="$HOME" USER="${USER:-}" TERM=dumb PATH=/usr/bin:/bin bash -ilc 'printf "ble=%s\n" "${BLE_VERSION:-none}"' 2>&1 </dev/null)"; then
+        if [[ "$(sed -n 's/^ble=//p' <<< "$ao_probe")" == "none" ]]; then ok "bash -ilc gets environment only"; else fail "bash -ilc loads ble.sh"; fi
+    else
+        fail "bash -ilc did not finish within 10s"
     fi
 
     if [[ "$IS_WSL" -eq 1 ]]; then

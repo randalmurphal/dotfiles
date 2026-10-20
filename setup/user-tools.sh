@@ -130,7 +130,7 @@ install_direnv() {
         "https://github.com/direnv/direnv/releases/download/$tag/direnv.linux-$(go_arch)"
 }
 
-# Bun lives in ~/.bun (toolchains.zsh puts it on PATH) and ships as a zip.
+# Bun lives in ~/.bun (toolchains.sh puts it on PATH) and ships as a zip.
 install_bun() {
     if [[ "$UPGRADE" -eq 0 && -x "$HOME/.bun/bin/bun" ]]; then
         echo "bun already installed"
