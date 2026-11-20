@@ -44,6 +44,8 @@ docs/        cheat sheets (tmux, nvim, bash)
 
 **Agent shells get environment only.** Claude Code and Codex source `.bashrc` from a non-interactive login shell and snapshot the result into every command; Agent Overflow probes PATH with `bash -ilc`. `.bashrc` loads `local.sh`, `path.sh` and `toolchains.sh`, then returns for any shell that is not an interactive terminal (or carries the agents' env markers), with all aliases removed: no prompt hooks, no zoxide, no zsh. Codex carries the exports into its commands; Claude Code carries functions only and takes PATH from the process that launched it, so a variable Claude needs goes in its `settings.json` `env`. `dotfiles doctor` checks it.
 
+**Short Windows PATH on WSL.** WSL appends every directory on the Windows PATH, and a lookup of a command that exists nowhere walks all of them at a round trip to Windows each (about 70 ms a miss, in terminals and agent shells alike). `path.sh` keeps System32, Windows, PowerShell and the editor launchers (`code`, `cursor`, `zed`); anything else on the Windows side runs through `powershell.exe -c` or its full path.
+
 **Stow, not symlink scripts.** One command to link, one to unlink, conflict detection built in. No hand-rolled symlink management to debug at 2am.
 
 **Machine-local overrides.** `~/.bash/local.sh` and `~/.gitconfig.local` for stuff that doesn't belong in a repo (work email, `DEFAULT_VENV` path, machine-specific aliases). Never tracked, never committed.

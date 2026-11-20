@@ -333,6 +333,31 @@ doctor() {
         else
             fail "earlyoom not running (run setup/wsl.sh)"
         fi
+        # path.sh drops the Windows directories nothing here calls: every one
+        # left on PATH is a round trip to Windows for each failed lookup
+        # (Windows spells its own directories in any case, hence WINDOWS)
+        local trim_in="/usr/bin:/mnt/c/Users/x/scoop/shims:/mnt/c/WINDOWS/system32:/mnt/c/Program Files/Microsoft VS Code/bin/copilot-shim:/mnt/c/Program Files/Microsoft VS Code/bin/"
+        local trim_want="/usr/bin:/mnt/c/WINDOWS/system32:/mnt/c/Program Files/Microsoft VS Code/bin/" trim_shell trim_got
+        for trim_shell in "bash --noprofile --norc -c" "zsh -fc"; do
+            command -v "${trim_shell%% *}" &>/dev/null || continue
+            # shellcheck disable=SC2086,SC2016  # the shell and its flags are two words; $PATH is the child's
+            trim_got="$(env -i HOME=/nonexistent PATH="$trim_in" $trim_shell "source '$DOTFILES_DIR/shell/.bash/path.sh'; printf %s \"\$PATH\"" 2>&1 || true)"
+            # path.sh also prepends its own directories, so compare the tail
+            if [[ "$trim_got" == *"$trim_want" ]]; then
+                ok "Windows PATH trimmed (${trim_shell%% *})"
+            else
+                fail "path.sh in ${trim_shell%% *} left PATH as '$trim_got', expected it to end '$trim_want'"
+            fi
+        done
+        # What the trim must leave reachable: the Windows programs this repo's
+        # scripts call by bare name, looked up in a fresh login shell
+        local win_missing
+        win_missing="$(bash -lc 'for c in cmd.exe powershell.exe clip.exe explorer.exe; do type -P "$c" >/dev/null || printf "%s " "$c"; done' 2>/dev/null || true)"
+        if [[ -z "$win_missing" ]]; then
+            ok "cmd.exe, powershell.exe, clip.exe, explorer.exe resolve"
+        else
+            fail "not on PATH in a login shell: $win_missing(pbcopy, pbpaste, open and dotfiles sync call them)"
+        fi
     fi
 
     echo ""
