@@ -10,9 +10,11 @@
 # command string (`bash -c`, Agent Overflow's `bash -ilc` probe) and was not
 # started by an agent. Everything else is an agent shell. The tty test is
 # zsh's own test for "interactive": without it a `bash -i` fed through a pipe
-# would hand off to a zsh that reads no config at all.
+# would hand off to a zsh that reads no config at all. TERM=dumb cannot draw
+# highlighting or suggestions and is nearly always a program driving a shell
+# (WSL's hidden boot-time login session, for one), so it is an agent shell too.
 __terminal=1
-if [[ $- != *i* || ! -t 0 || -n "${BASH_EXECUTION_STRING-}" || -n "${CLAUDECODE-}" \
+if [[ $- != *i* || ! -t 0 || "${TERM-}" == dumb || -n "${BASH_EXECUTION_STRING-}" || -n "${CLAUDECODE-}" \
     || -n "${CODEX_MANAGED_BY_NPM-}${CODEX_MANAGED_BY_BUN-}${CODEX_MANAGED_BY_PNPM-}" ]]; then
     __terminal=""
 fi
@@ -46,8 +48,10 @@ if [[ -z "$__terminal" ]]; then
 fi
 unset __terminal
 
-# A terminal that stayed in bash: system defaults (RHEL-family and macOS keep
-# bash-completion behind /etc/bashrc for non-login shells), aliases, functions.
+# A terminal that stayed in bash (DOTFILES_BASH=1, or no zsh installed; a dumb
+# terminal returned above with the agents): system defaults (RHEL-family and
+# macOS keep bash-completion behind /etc/bashrc for non-login shells),
+# aliases, functions.
 # The prompt, history search and plugins are zsh's and are not duplicated here.
 [[ -f /etc/bashrc ]]                && source /etc/bashrc
 [[ -f "$HOME/.bash/aliases.sh" ]]   && source "$HOME/.bash/aliases.sh"

@@ -304,6 +304,19 @@ doctor() {
     else
         fail "bash -ilc did not finish within 10s"
     fi
+    # That probe has no tty and a dumb TERM, either of which is enough to stay
+    # in bash. On a pty with a capable TERM only the command string is left
+    # to mark it as not a terminal.
+    if has_pty_script; then
+        local string_probe
+        # shellcheck disable=SC2016  # expanded by script's sh and by the probed bash
+        string_probe="$(on_pty PROBE='printf "shell=%s aliases=%s\n" "${BASH_VERSION:+bash}" "$(alias | wc -l | tr -d " ")"' -- 'bash -ilc "$PROBE"' </dev/null | tail -n 1)"
+        if [[ "$string_probe" == "shell=bash aliases=0" ]]; then
+            ok "bash -ilc on a terminal stays in bash too"
+        else
+            fail "bash -ilc on a pty: expected bash with no aliases, got '${string_probe:-nothing}'"
+        fi
+    fi
     # A machine whose login shell is still zsh sends agents through .zshrc,
     # which has to give them environment only as well
     if command -v zsh &>/dev/null; then
@@ -321,6 +334,7 @@ doctor() {
         check_pty_shell zsh "a terminal hands off to zsh"
         check_pty_shell bash "an interactive shell with an agent marker stays bash" CLAUDECODE=1
         check_pty_shell bash "DOTFILES_BASH=1 keeps bash" DOTFILES_BASH=1
+        check_pty_shell bash "a dumb terminal stays bash" TERM=dumb
     else
         skip "handoff on a pty (needs util-linux script)"
     fi

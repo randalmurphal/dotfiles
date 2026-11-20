@@ -21,7 +21,7 @@
 # the environment and no aliases, plus the three zsh defaults agents trip on
 # set to what bash does: an unmatched glob passes through, a word starting
 # with = is not a command lookup, echo prints backslashes.
-if [[ ! -o interactive || ! -t 0 || -n "${ZSH_EXECUTION_STRING-}" || -n "${CLAUDECODE-}" \
+if [[ ! -o interactive || ! -t 0 || "${TERM-}" == dumb || -n "${ZSH_EXECUTION_STRING-}" || -n "${CLAUDECODE-}" \
     || -n "${CODEX_MANAGED_BY_NPM-}${CODEX_MANAGED_BY_BUN-}${CODEX_MANAGED_BY_PNPM-}" ]]; then
     setopt no_nomatch no_equals bsd_echo
     unalias -m '*'
