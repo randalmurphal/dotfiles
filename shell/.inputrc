@@ -1,6 +1,6 @@
 # Readline config. Every readline program reads this file (psql, python,
-# gdb), so everything but the system defaults is scoped to bash. ble.sh
-# rebuilds its key bindings from this file.
+# gdb), so everything but the system defaults is scoped to bash. Terminals
+# run zsh; an interactive bash is what `DOTFILES_BASH=1 bash` gives you.
 
 $include /etc/inputrc
 

@@ -247,33 +247,14 @@ install_section_shell() {
 
     stow_package shell || return 1
 
-    # ble.sh: autosuggestions, syntax highlighting, completion menu. Updates
-    # itself with ble-update.
-    if [[ -f "$HOME/.local/share/blesh/ble.sh" ]]; then
-        info "ble.sh already installed (update with: ble-update)"
-    else
-        step "Installing ble.sh..."
-        local tmp
-        tmp="$(mktemp -d)"
-        if curl -fsSL https://github.com/akinomyoga/ble.sh/releases/download/nightly/ble-nightly.tar.xz \
-                | tar -xJf - -C "$tmp" \
-            && bash "$tmp/ble-nightly/ble.sh" --install "$HOME/.local/share"; then
-            rm -rf "$tmp"
-            success "ble.sh installed"
-        else
-            rm -rf "$tmp"
-            error "ble.sh installation failed"
-            return 1
-        fi
-    fi
-
     # Local bash config template (lives alongside stow symlinks, not tracked)
     local local_sh="$HOME/.bash/local.sh"
     if [[ ! -f "$local_sh" ]]; then
         cat > "$local_sh" << 'LOCALSH'
 # ~/.bash/local.sh - Machine-specific Bash configuration
-# This file is NOT managed by stow and is gitignored. It loads before
-# everything else in .bashrc, agent shells included.
+# This file is NOT managed by stow and is gitignored. Agent shells source it
+# from .bashrc and zsh terminals from .zshrc, before everything else, so keep
+# it to syntax both shells accept (`dotfiles doctor` loads it in zsh).
 # Add machine-specific aliases, exports, paths, etc. here.
 
 # Example:
@@ -294,14 +275,57 @@ LOCALSH
         info "$local_sh already exists"
     fi
 
-    set_login_shell_bash
+    # Before the zsh steps: those need the network, and a failure there must
+    # not leave the login shell (and so every agent) on zsh
+    set_login_shell_bash || return 1
+
+    # Terminals hand off from bash to zsh (.bashrc); oh-my-zsh and two plugins
+    # give it autosuggestions and syntax highlighting. Update them with
+    # `dotfiles upgrade zsh`.
+    if ! command -v zsh &>/dev/null; then
+        error "zsh is not installed (run: bash install.sh --section packages)"
+        return 1
+    fi
+    if [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]]; then
+        info "oh-my-zsh already installed"
+    else
+        step "Installing oh-my-zsh..."
+        # Downloaded to a file first: `sh -c "$(curl ...)"` runs an empty
+        # script and succeeds when the download fails. CHSH=no: its installer
+        # would otherwise make zsh the login shell, which has to stay bash for
+        # the agents.
+        local omz_installer
+        omz_installer="$(mktemp)"
+        if curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "$omz_installer" \
+            && CHSH=no RUNZSH=no KEEP_ZSHRC=yes sh "$omz_installer"; then
+            rm -f "$omz_installer"
+        else
+            rm -f "$omz_installer"
+            error "oh-my-zsh installation failed"
+            return 1
+        fi
+    fi
+
+    local zsh_custom="$HOME/.oh-my-zsh/custom" plugin
+    for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+        if [[ -d "$zsh_custom/plugins/$plugin" ]]; then
+            info "$plugin already installed"
+        else
+            step "Installing $plugin..."
+            git clone --depth 1 "https://github.com/zsh-users/$plugin" \
+                "$zsh_custom/plugins/$plugin" || {
+                error "$plugin installation failed"
+                return 1
+            }
+        fi
+    done
 
     success "Shell setup complete"
 }
 
-# Make bash the login shell, so terminals, tmux and every agent (Claude Code,
-# Codex, Agent Overflow) run bash. Codex reads the login shell from the
-# account database and has no setting of its own.
+# Make bash the login shell, so every agent (Claude Code, Codex, Agent
+# Overflow) runs bash; terminals start in it and hand off to zsh. Codex reads
+# the login shell from the account database and has no setting of its own.
 set_login_shell_bash() {
     local bash_path current
     bash_path="$(command -v bash)"
@@ -746,7 +770,7 @@ main() {
     local -a sections=(
         "packages|System packages|install_section_packages|0"
         "tools|User tools|install_section_tools|0"
-        "shell|Shell (bash + ble.sh)|install_section_shell|0"
+        "shell|Shell (bash for agents, zsh in terminals)|install_section_shell|0"
         "git|Git configuration|install_section_git|0"
         "tmux|Tmux + TPM|install_section_tmux|0"
         "wezterm|WezTerm|install_section_wezterm|0"

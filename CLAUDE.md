@@ -7,7 +7,7 @@ Personal dotfiles managed with GNU Stow.
 ```
 dotfiles/
 ├── install.sh              # Interactive installer (bash install.sh / bash install.sh --all)
-├── shell/                  # Stow package: .bashrc, .bash_profile, .inputrc, .bash/*.sh (old .zshrc + .zsh/ unmaintained)
+├── shell/                  # Stow package: .bashrc (agents; hands terminals to zsh), .zshrc (terminals), .bash/*.sh (shared by both), .bash_profile, .inputrc
 ├── git/                    # Stow package: .gitconfig + .gitignore_global
 ├── tmux/                   # Stow package: .tmux.conf
 ├── wezterm/                # Stow package: .wezterm.lua
@@ -32,29 +32,30 @@ dotfiles/
 Each top-level directory is a stow "package". Running `stow shell` from the repo creates symlinks in `$HOME` mirroring the package structure:
 
 - `shell/.bashrc` -> `~/.bashrc`
-- `shell/.bash/core.sh` -> `~/.bash/core.sh`
+- `shell/.bash/path.sh` -> `~/.bash/path.sh`
 - `git/.gitconfig` -> `~/.gitconfig`
 - `bin/.local/bin/dotfiles` -> `~/.local/bin/dotfiles`
 
 ## Machine-Local Overrides
 
 These files are NOT tracked in git:
-- `~/.bash/local.sh` - Machine-specific shell config (aliases, exports, DEFAULT_VENV, CA bundle); loads first, agent shells included
+- `~/.bash/local.sh` - Machine-specific shell config (aliases, exports, DEFAULT_VENV, CA bundle); loads first in bash and in zsh, agent shells included
 - `~/.gitconfig.local` - Git identity (name, email), included by .gitconfig
 
 ## Key Patterns
 
 - **No shims**: uv installs Python; venvs and any leftover pyenv version bin go on PATH directly, never shims
 - **Lazy-loaded nvm**: the default version's bin is on PATH directly; only `nvm()` is a stub. Never re-add node/npm/pnpm stubs: Claude Code's snapshot carries functions but not `NVM_DIR`, so a stub shadows a working binary with `. /nvm.sh`
-- **Agent shells get environment only**: `.bashrc` loads local/path/toolchains, then returns with `unalias -a` unless `$-` has `i`, `BASH_EXECUTION_STRING` is empty (Agent Overflow probes with `bash -ilc`) and no `CLAUDECODE` / `CODEX_MANAGED_BY_*` marker is set. Anything interactive (ble.sh, PROMPT_COMMAND hooks, zoxide, completions, aliases) goes in `core.sh`/`aliases.sh`, after that return. Claude Code's snapshot keeps functions but takes PATH from its launching process and drops other exports, so a variable Claude needs goes in its `settings.json` env; Codex carries exports. PATH entries go through `path_prepend` (agents source `.bashrc` twice)
-- **Bash is the login shell**: Codex reads the shell from the account database and has no setting, so `chsh` is what makes it run bash
+- **Bash for agents, zsh for terminals**: bash is the login shell and `$SHELL`, which is where agents get their shell (Codex from the account database, Claude Code and Agent Overflow from `$SHELL`), so `chsh` stays bash. `.bashrc` execs zsh for a terminal only: `$-` has `i`, stdin is a tty, `BASH_EXECUTION_STRING` is empty (Agent Overflow probes with `bash -ilc`) and no `CLAUDECODE` / `CODEX_MANAGED_BY_*` marker is set. `DOTFILES_BASH=1 bash` keeps bash. `.zshrc` applies the same test, so on a machine whose login shell is still zsh an agent gets environment only there too
+- **Agent shells get environment only**: every other bash loads local/path/toolchains and returns with `unalias -a`. Claude Code's snapshot keeps functions but takes PATH from its launching process and drops other exports, so a variable Claude needs goes in its `settings.json` env; Codex carries exports. PATH entries go through `path_prepend` (agents source `.bashrc` twice)
+- **One config, two shells**: `.zshrc` sources the same `~/.bash/*.sh` files, so write them for both shells: no `shopt`, `complete` or `declare -n`, quote every expansion (zsh does not word-split an unquoted `$var`), and avoid numeric array indexes (zsh starts at 1). `dotfiles doctor` starts zsh and fails on a startup error, which catches syntax but not a difference in meaning. PATH and exports go in `path.sh` or `local.sh`: a line appended to `.bashrc` sits after the handoff and never runs, and one in `.zshrc` never reaches an agent. Only the line editor, prompt, history and plugins are zsh-specific, in `.zshrc`
 - **PATH-based venv detection**: Checks `$PATH` not `$VIRTUAL_ENV` for activation guard
 - **Cross-platform clipboard**: pbcopy/pbpaste/open wrappers handle WSL, Linux, macOS
 
 ## Editing
 
 Always edit files in this repo, not the symlinked copies in `~`. After editing:
-- Shell configs: open a new terminal (ble.sh does not reload cleanly in place)
+- Shell configs: open a new terminal
 - WezTerm (WSL): Must copy to Windows side with `dotfiles sync`, which also sets the default distro to the one it runs from (a plain `cp` leaves the repo's fallback name)
 - Tmux: `prefix + r` to reload
 

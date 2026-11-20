@@ -44,11 +44,13 @@ else
     alias ls='ls -la --color=auto'
     alias ll='ls -la --color=auto'
     alias la='ls -la --color=auto'
-    if command -v batcat &> /dev/null; then
+    # bat first: a name that is not installed costs a walk of all of PATH,
+    # which on WSL includes two dozen Windows directories (Debian's is batcat)
+    if command -v bat &> /dev/null; then
+        alias cat='bat'
+    elif command -v batcat &> /dev/null; then
         alias cat='batcat'
         alias bat='batcat'
-    elif command -v bat &> /dev/null; then
-        alias cat='bat'
     fi
     if command -v gdu &> /dev/null; then
         alias du='gdu'

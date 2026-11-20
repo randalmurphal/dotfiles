@@ -22,7 +22,7 @@ bash install.sh --all  # no prompts
 ## What's In Here
 
 ```
-shell/       bash config (modular: core, aliases, functions, path, toolchains) + .inputrc; the old zsh config stays, unmaintained
+shell/       .bashrc for agents, .zshrc for terminals, shared modules (aliases, functions, path, toolchains) + .inputrc
 git/         gitconfig with delta, aliases, global gitignore
 tmux/        tmux.conf (Ctrl+Space prefix, dark purple theme, TPM)
 wezterm/     wezterm.lua (dark purple theme, resurrect plugin, sysinfo status bar)
@@ -38,9 +38,11 @@ docs/        cheat sheets (tmux, nvim, bash)
 
 **Lazy-loaded nvm.** The default Node version's bin goes straight on PATH; `nvm.sh` itself (~2 seconds) loads only when you call `nvm`. No stubs for `node`/`npm`/`pnpm`: a stub can only shadow the real binary, and Claude Code's shell snapshot carried the stubs without `NVM_DIR`, which is exactly how it did.
 
-**Bash, with ble.sh.** Bash is the login shell, so terminals, tmux and every agent run it; zsh's defaults (an unmatched glob aborting the command, `$var[...]` and `$var:x` parsed as subscripts and modifiers, unquoted variables not word-splitting, heredocs needing a temp file) broke agent commands written for bash. Codex has no shell setting, so the login shell is the only way to give it bash. [ble.sh](https://github.com/akinomyoga/ble.sh) brings the zsh niceties: autosuggestions (Ctrl-E accepts), syntax highlighting, a completion menu; `~/.inputrc` adds case-insensitive completion and Up/Down prefix history search.
+**Bash for agents, zsh for terminals.** Bash is the login shell, so every agent runs it; zsh's defaults (an unmatched glob aborting the command, `$var[...]` and `$var:x` parsed as subscripts and modifiers, unquoted variables not word-splitting, heredocs needing a temp file) broke agent commands written for bash. Codex has no shell setting, so the login shell is the only way to give it bash. A terminal you type in is different: `.bashrc` hands it off to zsh, where autosuggestions (Ctrl-E accepts) and syntax highlighting are native. ble.sh did the same job inside bash for a while, at about 25 ms per keystroke against zsh's 1 to 2. `$SHELL` stays bash, so an agent started from that terminal still runs bash, and `DOTFILES_BASH=1 bash` gives you a plain interactive bash.
 
-**Agent shells get environment only.** Claude Code and Codex source `.bashrc` from a non-interactive login shell and snapshot the result into every command; Agent Overflow probes PATH with `bash -ilc`. `.bashrc` loads `local.sh`, `path.sh` and `toolchains.sh`, then returns for any shell that is not an interactive terminal (or carries the agents' env markers), with all aliases removed: no ble.sh, no prompt hooks, no zoxide. Codex carries the exports into its commands; Claude Code carries functions only and takes PATH from the process that launched it, so a variable Claude needs goes in its `settings.json` `env`. `dotfiles doctor` checks it.
+**One config, two shells.** `.zshrc` sources the same `~/.bash/*.sh` files `.bashrc` does, so PATH, exports, aliases and functions are written once, in syntax both shells accept. Only the line editor, prompt, history and plugins (oh-my-zsh, zsh-autosuggestions, zsh-syntax-highlighting; update with `dotfiles upgrade zsh`) live in `.zshrc`.
+
+**Agent shells get environment only.** Claude Code and Codex source `.bashrc` from a non-interactive login shell and snapshot the result into every command; Agent Overflow probes PATH with `bash -ilc`. `.bashrc` loads `local.sh`, `path.sh` and `toolchains.sh`, then returns for any shell that is not an interactive terminal (or carries the agents' env markers), with all aliases removed: no prompt hooks, no zoxide, no zsh. Codex carries the exports into its commands; Claude Code carries functions only and takes PATH from the process that launched it, so a variable Claude needs goes in its `settings.json` `env`. `dotfiles doctor` checks it.
 
 **Stow, not symlink scripts.** One command to link, one to unlink, conflict detection built in. No hand-rolled symlink management to debug at 2am.
 

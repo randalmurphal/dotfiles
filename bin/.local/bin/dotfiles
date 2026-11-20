@@ -37,13 +37,43 @@ skip() { echo -e "  ${DIM}-${RESET} $*"; }
 
 check_symlink() {
     local target="$1" desc="$2"
-    if [[ -L "$target" ]]; then
+    if [[ -L "$target" && -e "$target" ]]; then
         ok "$desc"
+    elif [[ -L "$target" ]]; then
+        fail "$desc (dangling symlink; run: dotfiles update)"
     elif [[ -e "$target" ]]; then
         warn "$desc (exists but not a symlink)"
     else
         fail "$desc (missing)"
     fi
+}
+
+# Run a command line on a real pty under a cold environment and print what it
+# wrote. Arguments before -- are environment assignments. Needs util-linux
+# script (has_pty_script); the environment travels through env, not through
+# the command string, so nothing in it needs quoting.
+has_pty_script() { script --version 2>/dev/null | grep -q util-linux; }
+on_pty() {
+    local assigns=()
+    while [[ $# -gt 0 && "$1" != "--" ]]; do assigns+=("$1"); shift; done
+    shift
+    timeout 20 env -i HOME="$HOME" USER="${USER:-}" TERM=xterm-256color PATH=/usr/bin:/bin HISTFILE=/dev/null \
+        ${assigns[@]+"${assigns[@]}"} script -qec "$1" /dev/null 2>/dev/null | tr -d '\r' || true
+}
+
+# Which shell answers at the prompt of an interactive bash on a real pty:
+# prints "bash" or "zsh". Arguments are environment assignments for that bash.
+# The commands start with a space so zsh keeps them out of its history.
+pty_shell() {
+    printf ' printf "__pty_shell=%%s\\n" "${BASH_VERSION:+bash}${ZSH_VERSION:+zsh}"\n exit\n' \
+        | on_pty "$@" -- 'bash -i' | sed -nE 's/.*__pty_shell=(bash|zsh)$/\1/p' | tail -n 1
+}
+
+check_pty_shell() {
+    local want="$1" desc="$2" got
+    shift 2
+    got="$(pty_shell "$@")"
+    if [[ "$got" == "$want" ]]; then ok "$desc"; else fail "$desc (prompt was answered by ${got:-nothing}, expected $want)"; fi
 }
 
 check_cmd() {
@@ -70,7 +100,7 @@ doctor() {
     check_symlink "$HOME/.bashrc" ".bashrc"
     check_symlink "$HOME/.bash_profile" ".bash_profile"
     check_symlink "$HOME/.inputrc" ".inputrc"
-    check_symlink "$HOME/.bash/core.sh" ".bash/core.sh"
+    check_symlink "$HOME/.zshrc" ".zshrc"
     check_symlink "$HOME/.bash/aliases.sh" ".bash/aliases.sh"
     check_symlink "$HOME/.bash/functions.sh" ".bash/functions.sh"
     check_symlink "$HOME/.bash/path.sh" ".bash/path.sh"
@@ -122,7 +152,75 @@ doctor() {
     else
         fail "login shell is ${login_shell:-unknown}, not bash (Codex and new terminals follow it; run: chsh -s \"\$(command -v bash)\")"
     fi
-    if [[ -f "$HOME/.local/share/blesh/ble.sh" ]]; then ok "ble.sh"; else fail "ble.sh (not installed; run: bash install.sh --section shell)"; fi
+    check_cmd zsh "zsh (terminals hand off to it)"
+    if [[ -f "$HOME/.oh-my-zsh/oh-my-zsh.sh" ]]; then ok "oh-my-zsh"; else fail "oh-my-zsh (not installed; run: bash install.sh --section shell)"; fi
+    local plugin
+    for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
+        if [[ -d "$HOME/.oh-my-zsh/custom/plugins/$plugin" || -d "/opt/homebrew/share/$plugin" || -d "/usr/local/share/$plugin" ]]; then
+            ok "$plugin"
+        else
+            fail "$plugin (not installed; run: bash install.sh --section shell)"
+        fi
+    done
+    # ~/.zshrc sources the ~/.bash files unchanged, so a bash-only construct in
+    # one of them breaks every terminal while agents keep working. This starts
+    # the real zsh on a pty, as a terminal does, and types at its prompt:
+    # startup must write nothing to stderr, and one name from each shared file
+    # must be defined.
+    if ! command -v zsh &>/dev/null; then
+        :
+    elif has_pty_script; then
+        local zsh_err zsh_loaded
+        zsh_err="$(mktemp)"
+        # shellcheck disable=SC2016  # expanded by zsh and by script's sh, not here
+        zsh_loaded="$(printf ' print -r -- "__zsh_loaded=$(( $+functions[path_prepend] && $+functions[venv] && $+aliases[gs] && $+functions[extract] ))"\n exit\n' \
+            | on_pty ZSH_ERR="$zsh_err" -- 'zsh -i 2>"$ZSH_ERR"' | sed -nE 's/.*__zsh_loaded=([01])$/\1/p' | tail -n 1)"
+        if [[ -s "$zsh_err" ]]; then
+            fail "zsh startup printed errors (a shared .bash/*.sh file or .zshrc):"
+            sed 's/^/      /' "$zsh_err"
+        elif [[ "$zsh_loaded" == "1" ]]; then
+            ok "zsh starts clean with the shared .bash/*.sh files loaded"
+        elif [[ "$zsh_loaded" == "0" ]]; then
+            fail ".zshrc did not load the shared .bash/*.sh files (path_prepend, venv, gs, extract)"
+        else
+            fail "zsh did not answer at its prompt within 20s"
+        fi
+        rm -f "$zsh_err"
+    else
+        skip "zsh startup check (needs util-linux script)"
+    fi
+    # Installers append to rc files. After the handoff in .bashrc such a line
+    # never runs, in .bash_profile it reaches agents but no terminal, and in
+    # .zshrc or .zshenv it reaches terminals but no agent.
+    local rc
+    for rc in .bash_profile .bashrc .zshrc; do
+        [[ -f "$HOME/$rc" ]] || continue
+        if [[ "$(tail -n 1 "$HOME/$rc")" == "# end of $rc" ]]; then
+            ok "$rc has nothing appended"
+        else
+            fail "$rc has lines after '# end of $rc' (PATH and exports go in ~/.bash/path.sh or local.sh, which both shells load)"
+        fi
+    done
+    if [[ -s "$HOME/.zshenv" ]]; then
+        warn ".zshenv exists: zsh terminals read it, agents never do (move what is needed to ~/.bash/local.sh or path.sh, then delete it)"
+    fi
+    # Left behind by earlier layouts of this repo
+    local link stale=""
+    for link in "$HOME"/.[!.]* "$HOME"/.bash/* "$HOME"/.zsh/* "$HOME"/.local/bin/*; do
+        if [[ -L "$link" && ! -e "$link" && "$(readlink "$link")" == *repos/dotfiles/* ]]; then
+            stale+="      $link"$'\n'
+        fi
+    done
+    if [[ -n "$stale" ]]; then
+        fail "dangling links to files this repo no longer has (delete them):"
+        printf '%s' "$stale"
+    fi
+    if [[ -f "$HOME/.zsh/local.zsh" ]]; then
+        warn ".zsh/local.zsh is no longer read (move what is still needed to ~/.bash/local.sh, then delete it)"
+    fi
+    if [[ -d "$HOME/.local/share/blesh" ]]; then
+        warn "ble.sh is no longer used (close terminals still running it, then: rm -rf ~/.local/share/blesh ~/.cache/blesh ~/.local/state/blesh)"
+    fi
     if [[ -f "$HOME/.bash/local.sh" ]]; then ok "local.sh (machine overrides)"; else skip "local.sh (not created yet)"; fi
 
     echo ""
@@ -173,36 +271,58 @@ doctor() {
 
     echo ""
     echo -e "${CYAN}Agent shell${RESET} ${DIM}(.bashrc as Claude Code / Codex snapshot it: non-interactive login, cold PATH)${RESET}"
-    local probe node_path alias_count ble prompt_cmd dupes
+    local probe node_path alias_count prompt_cmd dupes
     probe="$(env -i HOME="$HOME" USER="${USER:-}" PATH=/usr/bin:/bin bash -lc '
         source ~/.bashrc
         printf "node=%s\n" "$(type -P node)"
         printf "aliases=%s\n" "$(alias | wc -l | tr -d " ")"
-        printf "ble=%s\n" "${BLE_VERSION:-none}"
         printf "prompt_cmd=%s\n" "${PROMPT_COMMAND:-none}"
         printf "dupes=%s\n" "$(tr : "\n" <<< "$PATH" | sort | uniq -d | wc -l | tr -d " ")"
     ' 2>&1)"
     node_path="$(sed -n 's/^node=//p' <<< "$probe")"
     alias_count="$(sed -n 's/^aliases=//p' <<< "$probe")"
-    ble="$(sed -n 's/^ble=//p' <<< "$probe")"
     prompt_cmd="$(sed -n 's/^prompt_cmd=//p' <<< "$probe")"
     dupes="$(sed -n 's/^dupes=//p' <<< "$probe")"
     if [[ -x "$node_path" ]]; then ok "node resolves to a binary ($node_path)"; else fail "node does not resolve to a binary (got '${node_path:-nothing}')"; fi
     if [[ "$alias_count" == "0" ]]; then ok "no aliases"; else fail "${alias_count:-?} aliases leak into agent shells"; fi
-    if [[ "$ble" == "none" ]]; then ok "no ble.sh"; else fail "ble.sh ($ble) loads in agent shells"; fi
     if [[ "$prompt_cmd" == "none" ]]; then ok "no prompt hooks"; else fail "PROMPT_COMMAND leaks into agent shells ($prompt_cmd)"; fi
     if [[ "$dupes" == "0" ]]; then ok "no duplicate PATH entries after sourcing .bashrc twice"; else fail "$dupes duplicate PATH entries"; fi
-    if grep -qvE '^(node|aliases|ble|prompt_cmd|dupes)=' <<< "$probe"; then
+    if grep -qvE '^(node|aliases|prompt_cmd|dupes)=' <<< "$probe"; then
         warn "agent shell startup printed output (should be silent):"
-        grep -vE '^(node|aliases|ble|prompt_cmd|dupes)=' <<< "$probe" | sed 's/^/      /'
+        grep -vE '^(node|aliases|prompt_cmd|dupes)=' <<< "$probe" | sed 's/^/      /'
     fi
     # Agent Overflow reads PATH from `bash -ilc`: interactive flag, but a
-    # command string, so it must get environment only and return promptly
+    # command string, so it must stay in bash, get environment only and
+    # return promptly
     local ao_probe
-    if ao_probe="$(timeout 10 env -i HOME="$HOME" USER="${USER:-}" TERM=dumb PATH=/usr/bin:/bin bash -ilc 'printf "ble=%s\n" "${BLE_VERSION:-none}"' 2>&1 </dev/null)"; then
-        if [[ "$(sed -n 's/^ble=//p' <<< "$ao_probe")" == "none" ]]; then ok "bash -ilc gets environment only"; else fail "bash -ilc loads ble.sh"; fi
+    if ao_probe="$(timeout 10 env -i HOME="$HOME" USER="${USER:-}" TERM=dumb PATH=/usr/bin:/bin bash -ilc 'printf "shell=%s aliases=%s\n" "${BASH_VERSION:+bash}" "$(alias | wc -l | tr -d " ")"' 2>/dev/null </dev/null)"; then
+        if [[ "$ao_probe" == "shell=bash aliases=0" ]]; then
+            ok "bash -ilc stays in bash, environment only"
+        else
+            fail "bash -ilc: expected bash with no aliases, got '${ao_probe:-nothing}'"
+        fi
     else
         fail "bash -ilc did not finish within 10s"
+    fi
+    # A machine whose login shell is still zsh sends agents through .zshrc,
+    # which has to give them environment only as well
+    if command -v zsh &>/dev/null; then
+        local zsh_probe
+        zsh_probe="$(timeout 10 env -i HOME="$HOME" USER="${USER:-}" TERM=dumb PATH=/usr/bin:/bin zsh -ilc 'print -r -- "aliases=$(alias | wc -l | tr -d " ") hooks=${#precmd_functions}"' 2>/dev/null </dev/null | tail -n 1 || true)"
+        if [[ "$zsh_probe" == "aliases=0 hooks=0" ]]; then
+            ok "zsh -ilc gets environment only"
+        else
+            fail "zsh -ilc: expected no aliases and no prompt hooks, got '${zsh_probe:-nothing}'"
+        fi
+    fi
+    # The handoff on a real pty: a terminal becomes zsh, while an agent's
+    # interactive shell and an opted-out one stay bash
+    if has_pty_script; then
+        check_pty_shell zsh "a terminal hands off to zsh"
+        check_pty_shell bash "an interactive shell with an agent marker stays bash" CLAUDECODE=1
+        check_pty_shell bash "DOTFILES_BASH=1 keeps bash" DOTFILES_BASH=1
+    else
+        skip "handoff on a pty (needs util-linux script)"
     fi
 
     if [[ "$IS_WSL" -eq 1 ]]; then
@@ -243,34 +363,66 @@ doctor() {
 update() {
     echo "Updating dotfiles..."
     cd "$DOTFILES_DIR"
+    local packages=(shell git tmux wezterm bin) pkg file link before
+    # Stow visits only the directories a package still has, so the link for a
+    # file the pull deletes can be left dangling. Remember what was linked.
+    before="$(git ls-files -- "${packages[@]}")"
     git pull --rebase
 
     echo "Restowing packages..."
-    for pkg in shell git tmux wezterm bin; do
+    for pkg in "${packages[@]}"; do
         if [[ -d "$DOTFILES_DIR/$pkg" ]]; then
             stow --restow --no-folding --target="$HOME" "$pkg" 2>/dev/null && echo "  ✓ $pkg" || echo "  ✗ $pkg (conflict)"
         fi
     done
+    while IFS= read -r file; do
+        link="$HOME/${file#*/}"
+        if [[ ! -e "$DOTFILES_DIR/$file" && -L "$link" && ! -e "$link" ]]; then
+            rm -- "$link"
+            echo "  ✓ removed the link for deleted $file"
+        fi
+    done <<< "$before"
 
     echo "Done."
 }
 
-# Categories: go and nvim here, the rest belong to setup/user-tools.sh.
+# oh-my-zsh and the two plugins are git clones. .zshrc turns off oh-my-zsh's
+# own update check, so this is what updates them.
+upgrade_zsh() {
+    local dir
+    for dir in "$HOME/.oh-my-zsh" \
+        "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions" \
+        "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"; do
+        if [[ -d "$dir/.git" ]]; then
+            echo "Updating ${dir##*/}..."
+            git -C "$dir" pull --ff-only --quiet || {
+                echo "  ✗ ${dir##*/}: git pull failed in $dir" >&2
+                return 1
+            }
+        else
+            echo "  - ${dir##*/} is not a git clone at $dir (run: bash install.sh --section shell)"
+        fi
+    done
+}
+
+# Categories: go, nvim and zsh here, the rest belong to setup/user-tools.sh.
 upgrade() {
     if [[ $# -eq 0 ]]; then
         echo "Usage: dotfiles upgrade <category...|all>"
         echo "  go       Go toolchain, dlv, govulncheck, golangci-lint"
         echo "  nvim     Neovim"
+        echo "  zsh      oh-my-zsh, zsh-autosuggestions, zsh-syntax-highlighting"
         bash "$DOTFILES_DIR/setup/user-tools.sh" --help | tail -n +3
         return 1
     fi
 
-    local category user_categories=() run_go=0 run_nvim=0 run_user=0
+    local category user_categories=() run_go=0 run_nvim=0 run_zsh=0 run_user=0
     for category in "$@"; do
         case "$category" in
-            all) run_go=1; run_nvim=1; run_user=1 ;;
+            all) run_go=1; run_nvim=1; run_zsh=1; run_user=1 ;;
             go) run_go=1 ;;
             nvim) run_nvim=1 ;;
+            zsh) run_zsh=1 ;;
             *) user_categories+=("$category"); run_user=1 ;;
         esac
     done
@@ -283,6 +435,9 @@ upgrade() {
     fi
     if [[ "$run_nvim" -eq 1 ]]; then
         bash "$DOTFILES_DIR/install.sh" --section neovim
+    fi
+    if [[ "$run_zsh" -eq 1 ]]; then
+        upgrade_zsh
     fi
 }
 
