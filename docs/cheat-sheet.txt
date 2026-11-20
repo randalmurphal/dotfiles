@@ -19,8 +19,8 @@
 └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌─ 💻 BASH ALIASES & SHORTCUTS ────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ keys                       - Show this cheat sheet        │ cdd                        - Go to dotfiles repo          │
-│ cdnv                       - Go to nvim config repo       │ ls                         - List all files with colors   │
+│ keys                       - Show this cheat sheet        │ cdnv                       - Go to nvim config repo       │
+│ ls                         - List all files with colors   │                                                           │
 │ ..                         - Go up one directory          │ ...                        - Go up two directories        │
 │ gs                         - Git status                   │ ga                         - Git add                      │
 │ gc                         - Git commit                   │ gp                         - Git push                     │

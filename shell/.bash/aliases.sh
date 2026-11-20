@@ -24,7 +24,6 @@ alias cx='codex --yolo'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
-alias cdd="cd $REPOS_PATH/dotfiles"
 alias cdnv="cd ~/.config/nvim"
 
 # OS-specific
